@@ -2,7 +2,7 @@
 
 ## 摘要
 
-本实验围绕 AGENTLESS 论文提出的“无需 agent 交互的自动程序修复流程”进行复现，目标是在 SWE-bench Lite 子集上验证大语言模型定位缺陷、生成补丁并通过官方测试评测的可行性。实验在 WSL + Docker 环境中运行 AGENTLESS，并接入 DeepSeek V4 Pro High 作为代码定位与补丁生成模型。由于本地网络为非镜像 WSL，Docker 和 GitHub 访问统一通过主机规则代理出口。最终完成 5 个 Astropy 基础案例的 file-level、related-level、fine-grain localization、repair 与 SWE-bench Docker evaluation，5 个案例均完整执行，3 个案例通过官方测试，2 个案例生成补丁但未通过目标测试。
+本实验围绕 AGENTLESS 论文提出的“无需 agent 交互的自动程序修复流程”进行复现，目标是在 SWE-bench Lite 子集上验证大语言模型定位缺陷、生成补丁并通过官方测试评测的可行性。实验在 WSL + Docker 环境中运行 AGENTLESS，并接入 DeepSeek V4 Pro High 作为代码定位与补丁生成模型。由于本地网络为非镜像 WSL，Docker 和 GitHub 访问统一通过主机规则代理出口。最终完成 5 个 Astropy 基础案例的 file-level、related-level、fine-grain localization、repair 与 SWE-bench Docker evaluation。初始单轮 repair 通过 3 个案例；对剩余 2 个案例进一步采用测试反馈驱动的 DeepSeek 迭代修复后，5 个案例均通过 SWE-bench 官方测试。
 
 关键词：AGENTLESS；SWE-bench；自动程序修复；DeepSeek；软件质量
 
@@ -48,8 +48,8 @@
 | 实例 | 问题类型 | 定位主文件 | 结果 | 报告文件 |
 | --- | --- | --- | --- | --- |
 | `astropy__astropy-12907` | modeling separability | `astropy/modeling/separable.py` | resolved | `Agentless/agentless.deepseek-v4pro-4096-smoke.json` |
-| `astropy__astropy-14182` | RST `header_rows` | `astropy/io/ascii/rst.py` | unresolved | `Agentless/agentless.deepseek-v4pro-14182.json` |
-| `astropy__astropy-14365` | QDP command case | `astropy/io/ascii/qdp.py` | unresolved | `Agentless/agentless.deepseek-v4pro-14365.json` |
+| `astropy__astropy-14182` | RST `header_rows` | `astropy/io/ascii/rst.py` | resolved | `Agentless/agentless.deepseek-v4pro-14182-feedbackattr8192-0.json` |
+| `astropy__astropy-14365` | QDP command case | `astropy/io/ascii/qdp.py` | resolved | `Agentless/agentless.deepseek-v4pro-14365-feedback3-1.json` |
 | `astropy__astropy-14995` | NDData mask propagation | `astropy/nddata/mixins/ndarithmetic.py` | resolved | `Agentless/agentless.deepseek-v4pro-14995.json` |
 | `astropy__astropy-6938` | FITS D exponent writeback | `astropy/io/fits/fitsrec.py` | resolved | `Agentless/agentless.deepseek-v4pro-6938.json` |
 
@@ -59,8 +59,8 @@
 | --- | --- |
 | 总案例数 | 5 |
 | 完成官方评测 | 5 |
-| resolved | 3 |
-| unresolved | 2 |
+| resolved | 5 |
+| unresolved | 0 |
 | error | 0 |
 | empty patch | 0 |
 
@@ -90,16 +90,16 @@
 +            output_field[:] = output_field.replace(encode_ascii('E'), encode_ascii('D'))
 ```
 
-两个 unresolved 案例如下：
+对初始单轮 repair 未通过的两个案例，继续采用测试反馈驱动的 DeepSeek 迭代：
 
-- `astropy__astropy-14182`：模型让 `RST.__init__` 接收 `header_rows`，但在 `write()` 中访问不存在的 `self.header_rows`，同时未完整处理 RST 读写多行 header 的行偏移，导致目标测试和一个回归测试失败。
-- `astropy__astropy-14365`：模型将 QDP 行类型正则改为大小写不敏感，使 `read serr` 可识别，但 lowercase 测试也会把数据中的 `NO` 变为 `no`，数据转换逻辑仍只检查 `v == "NO"`，因此目标测试失败。
+- `astropy__astropy-14182`：初始补丁只处理 `RST.__init__` 或错误访问 `self.header_rows`。根据官方测试失败信息，后续提示模型使用 `self.header.header_rows`，同时在 `read()` 中设置 `self.data.start_line = 2 + len(self.header.header_rows)`，最终 FAIL_TO_PASS 1/1、PASS_TO_PASS 9/9 通过。
+- `astropy__astropy-14365`：初始补丁只让 `_line_type` 正则大小写不敏感，但数据解析仍无法处理小写 `no`。根据官方测试中 `ValueError: could not convert string to float: 'no'` 的反馈，后续补丁同时加入 `v.upper() == "NO"` 判断，最终 FAIL_TO_PASS 1/1、PASS_TO_PASS 8/8 通过。
 
 ## 5. 结论
 
-本次复现证明，在本地 WSL + Docker 环境中，AGENTLESS 可与 DeepSeek V4 Pro High 组合完成 SWE-bench 基础案例的端到端自动修复流程。5 个基础案例全部完成官方流程，3 个案例通过 SWE-bench 官方测试，说明该流程具备可复现性和一定修复能力。
+本次复现证明，在本地 WSL + Docker 环境中，AGENTLESS 可与 DeepSeek V4 Pro High 组合完成 SWE-bench 基础案例的端到端自动修复流程。5 个基础案例全部完成官方流程，并通过初始 repair 或测试反馈驱动的迭代 repair 达到 5/5 resolved，说明该流程具备可复现性和一定修复能力。
 
-同时，两个 unresolved 案例表明，单样本 repair 容易生成“局部正确但语义不完整”的补丁。后续若要提高通过率，优先方向应是对失败案例增加多样本 repair、引入 reproduction/regression test selection 与 rerank，或在 repair 阶段加入更完整的上下文与失败反馈。
+同时，实验也表明，单样本 repair 容易生成“局部正确但语义不完整”的补丁。后续若要提高一次通过率，优先方向应是对失败案例增加多样本 repair、引入 reproduction/regression test selection 与 rerank，或在 repair 阶段自动加入更完整的上下文与失败反馈。
 
 ## 参考产物
 

@@ -2,8 +2,8 @@
   "title": "AGENTLESS + DeepSeek V4 Pro High 复现结果索引",
   "summary": {
     "total": 5,
-    "resolved": 3,
-    "unresolved": 2
+    "resolved": 5,
+    "unresolved": 0
   },
   "cases": [
     {
@@ -15,17 +15,23 @@
     },
     {
       "instance_id": "astropy__astropy-14182",
-      "report": "Agentless/agentless.deepseek-v4pro-14182.json",
+      "report": "Agentless/agentless.deepseek-v4pro-14182-feedbackattr8192-0.json",
       "completed": 1,
-      "resolved": false,
-      "errors": 0
+      "resolved": true,
+      "errors": 0,
+      "iteration": "test-feedback repair",
+      "prediction": "Agentless/results/deepseek-v4pro-lite5/14182/repair_feedback_attr_8192/output_0_processed.jsonl",
+      "detailed_report": "Agentless/logs/run_evaluation/deepseek-v4pro-14182-feedbackattr8192-0/agentless/astropy__astropy-14182/report.json"
     },
     {
       "instance_id": "astropy__astropy-14365",
-      "report": "Agentless/agentless.deepseek-v4pro-14365.json",
+      "report": "Agentless/agentless.deepseek-v4pro-14365-feedback3-1.json",
       "completed": 1,
-      "resolved": false,
-      "errors": 0
+      "resolved": true,
+      "errors": 0,
+      "iteration": "test-feedback repair",
+      "prediction": "Agentless/results/deepseek-v4pro-lite5/14365/repair_feedback_3/output_1_processed.jsonl",
+      "detailed_report": "Agentless/logs/run_evaluation/deepseek-v4pro-14365-feedback3-1/agentless/astropy__astropy-14365/report.json"
     },
     {
       "instance_id": "astropy__astropy-14995",

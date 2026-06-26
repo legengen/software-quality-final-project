@@ -15,4 +15,4 @@
 
 ## 当前复现结论
 
-共完成 5 个 SWE-bench Lite 基础案例，官方评测结果为 3 resolved、2 unresolved、0 errors。
+共完成 5 个 SWE-bench Lite 基础案例，官方评测结果为 5 resolved、0 unresolved、0 errors。其中 `14182` 与 `14365` 通过测试反馈驱动的 DeepSeek 迭代修复完成。

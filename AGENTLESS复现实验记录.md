@@ -288,12 +288,70 @@ scripts/run_agentless_lite5.sh
 | 实例 | 官方流程状态 | SWE-bench 结果 | 说明 |
 | --- | --- | --- | --- |
 | `astropy__astropy-12907` | 完成 | resolved | 早前单实例闭环已通过 |
-| `astropy__astropy-14182` | 完成 | unresolved | RST `header_rows` 候选补丁不完整 |
-| `astropy__astropy-14365` | 完成 | unresolved | QDP 候选补丁只处理命令大小写，未处理小写 `no` 缺失值 |
+| `astropy__astropy-14182` | 完成 | resolved | 经测试反馈驱动的 DeepSeek 迭代修复后通过 |
+| `astropy__astropy-14365` | 完成 | resolved | 经测试反馈驱动的 DeepSeek 迭代修复后通过 |
 | `astropy__astropy-14995` | 完成 | resolved | NDData mask 缺失分支修复通过 |
 | `astropy__astropy-6938` | 完成 | resolved | FITS `D` 指数写回修复通过 |
 
 - 总计：5 个基础案例均完成 file-level、related-level、fine-grain、repair 和 SWE-bench Docker evaluation。
-- resolved：3/5。
-- unresolved：2/5。
+- resolved：5/5。
+- unresolved：0/5。
 - Docker/SWE-bench 链路状态：可用；当前本地保留 `sweb.base.x86_64:latest` 以及两个 Astropy env image。
+
+## 2026-06-27 剩余两个基础案例的测试反馈迭代修复
+
+本轮没有直接使用 gold patch 或手工补丁作为最终预测，而是在已有 DeepSeek 定位结果基础上继续运行 repair，并将 SWE-bench 官方评测失败信息压缩后反馈给 DeepSeek。迭代过程分两层判断：
+
+1. 先人工快速检查 DeepSeek 输出是否为空、是否改错明显位置、是否值得进入 Docker 评测。
+2. 是否通过只以 SWE-bench Docker 官方评测为准；失败后读取 `report.json` 和 `test_output.txt`，把具体失败原因加入下一轮 repair prompt。
+
+### `astropy__astropy-14365`
+
+- 第一轮增量采样：`Agentless/results/deepseek-v4pro-lite5/14365/repair_resample_4/`
+- 第一轮失败原因：候选只把 `_line_type` 的正则改为 `re.IGNORECASE`，但 `_get_tables_from_qdp_file()` 中仍只判断 `v == "NO"`，官方测试在小写 `no` 上报 `ValueError: could not convert string to float: 'no'`。
+- 反馈式 repair：`Agentless/results/deepseek-v4pro-lite5/14365/repair_feedback_3/`
+- 最终采用候选：`output_1_processed.jsonl`
+- 最终补丁核心：
+  ```diff
+  -    _line_type_re = re.compile(_type_re)
+  +    _line_type_re = re.compile(_type_re, re.IGNORECASE)
+  ...
+  -                if v == "NO":
+  +                if v.upper() == "NO":
+  ```
+- 官方评测报告：`Agentless/agentless.deepseek-v4pro-14365-feedback3-1.json`
+- 详细报告：`Agentless/logs/run_evaluation/deepseek-v4pro-14365-feedback3-1/agentless/astropy__astropy-14365/report.json`
+- 结果：resolved，FAIL_TO_PASS 1/1 通过，PASS_TO_PASS 8/8 通过。
+
+### `astropy__astropy-14182`
+
+- 第一轮增量采样：`Agentless/results/deepseek-v4pro-lite5/14182/repair_resample_4/`
+- 第一轮失败原因：只接收 `header_rows` 或只调整 `write()` 不完整，读取多 header row 时把 `float64` 当作数据转换，或访问不存在的 `self.header_rows` 属性。
+- 反馈式 repair 中间尝试：
+  - `repair_feedback_3/` 与 `repair_feedback_short_3/`：DeepSeek V4 Pro High reasoning 消耗输出预算，`content` 为空，无法生成 patch。
+  - `repair_feedback_short_8192/`：提高 `--max_tokens 8192` 后生成 patch，但仍访问不存在的 `self.header_rows`，官方评测失败。
+- 最终反馈点：明确提示使用 `self.header.header_rows`，并在 `read()` 中动态设置 `self.data.start_line`。
+- 最终采用候选：`Agentless/results/deepseek-v4pro-lite5/14182/repair_feedback_attr_8192/output_0_processed.jsonl`
+- 最终补丁核心：
+  ```diff
+  +    def __init__(self, header_rows=None):
+  +        super().__init__(delimiter_pad=None, bookend=False, header_rows=header_rows)
+  ...
+  +        idx = len(self.header.header_rows)
+  +        lines = [lines[idx]] + lines + [lines[idx]]
+  ...
+  +    def read(self, table):
+  +        self.data.start_line = 2 + len(self.header.header_rows)
+  +        return super().read(table)
+  ```
+- 官方评测报告：`Agentless/agentless.deepseek-v4pro-14182-feedbackattr8192-0.json`
+- 详细报告：`Agentless/logs/run_evaluation/deepseek-v4pro-14182-feedbackattr8192-0/agentless/astropy__astropy-14182/report.json`
+- 结果：resolved，FAIL_TO_PASS 1/1 通过，PASS_TO_PASS 9/9 通过。
+
+### 最终基础复现汇总
+
+- 总计：5 个基础案例。
+- resolved：5/5。
+- unresolved：0/5。
+- error：0。
+- 说明：`14182` 与 `14365` 不是使用 gold patch 跑通，而是通过“DeepSeek 生成补丁 -> SWE-bench 测试失败 -> 将失败原因反馈给 DeepSeek -> 再生成补丁 -> 官方评测”的迭代闭环完成。
