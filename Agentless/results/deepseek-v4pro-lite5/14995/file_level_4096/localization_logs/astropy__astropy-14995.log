@@ -1,0 +1,661 @@
+2026-06-26 11:25:35,587 - INFO - Processing bug astropy__astropy-14995
+2026-06-26 11:26:04,844 - INFO - ================ localize astropy__astropy-14995 ================
+2026-06-26 11:26:04,859 - INFO - prompting with message:
+Please look through the following GitHub problem description and Repository structure and provide a list of files that one would need to edit to fix the problem.
+
+### GitHub Problem Description ###
+In v5.3, NDDataRef mask propagation fails when one of the operand does not have a mask
+### Description
+
+This applies to v5.3. 
+
+It looks like when one of the operand does not have a mask, the mask propagation when doing arithmetic, in particular with `handle_mask=np.bitwise_or` fails.  This is not a problem in v5.2.
+
+I don't know enough about how all that works, but it seems from the error that the operand without a mask is set as a mask of None's and then the bitwise_or tries to operate on an integer and a None and fails.
+
+### Expected behavior
+
+When one of the operand does not have mask, the mask that exists should just be copied over to the output.  Or whatever was done in that situation in v5.2 where there's no problem.
+
+### How to Reproduce
+
+This is with v5.3.   With v5.2, there are no errors.
+
+```
+>>> import numpy as np
+>>> from astropy.nddata import NDDataRef
+
+>>> array = np.array([[0, 1, 0], [1, 0, 1], [0, 1, 0]])
+>>> mask = np.array([[0, 1, 64], [8, 0, 1], [2, 1, 0]])
+
+>>> nref_nomask = NDDataRef(array)
+>>> nref_mask = NDDataRef(array, mask=mask)
+
+# multiply no mask by constant (no mask * no mask)
+>>> nref_nomask.multiply(1., handle_mask=np.bitwise_or).mask   # returns nothing, no mask,  OK
+
+# multiply no mask by itself (no mask * no mask)
+>>> nref_nomask.multiply(nref_nomask, handle_mask=np.bitwise_or).mask # return nothing, no mask, OK
+
+# multiply mask by constant (mask * no mask)
+>>> nref_mask.multiply(1., handle_mask=np.bitwise_or).mask
+...
+TypeError: unsupported operand type(s) for |: 'int' and 'NoneType'
+
+# multiply mask by itself (mask * mask)
+>>> nref_mask.multiply(nref_mask, handle_mask=np.bitwise_or).mask
+array([[ 0,  1, 64],
+       [ 8,  0,  1],
+       [ 2,  1,  0]])
+
+# multiply mask by no mask (mask * no mask)
+>>> nref_mask.multiply(nref_nomask, handle_mask=np.bitwise_or).mask
+...
+TypeError: unsupported operand type(s) for |: 'int' and 'NoneType'
+```
+
+
+### Versions
+
+>>> import sys; print("Python", sys.version)
+Python 3.10.11 | packaged by conda-forge | (main, May 10 2023, 19:07:22) [Clang 14.0.6 ]
+>>> import astropy; print("astropy", astropy.__version__)
+astropy 5.3
+>>> import numpy; print("Numpy", numpy.__version__)
+Numpy 1.24.3
+>>> import erfa; print("pyerfa", erfa.__version__)
+pyerfa 2.0.0.3
+>>> import scipy; print("Scipy", scipy.__version__)
+Scipy 1.10.1
+>>> import matplotlib; print("Matplotlib", matplotlib.__version__)
+Matplotlib 3.7.1
+
+
+
+###
+
+### Repository Structure ###
+astropy/
+    setup.py
+    conftest.py
+    __init__.py
+    version.py
+    logger.py
+    visualization/
+        transform.py
+        __init__.py
+        hist.py
+        lupton_rgb.py
+        stretch.py
+        mpl_normalize.py
+        units.py
+        time.py
+        mpl_style.py
+        interval.py
+        scripts/
+            __init__.py
+            fits2bitmap.py
+        wcsaxes/
+            axislabels.py
+            __init__.py
+            core.py
+            coordinates_map.py
+            grid_paths.py
+            wcsapi.py
+            frame.py
+            helpers.py
+            utils.py
+            coordinate_helpers.py
+            ticklabels.py
+            transforms.py
+            formatter_locator.py
+            patches.py
+            ticks.py
+            coordinate_range.py
+    cosmology/
+        __init__.py
+        core.py
+        realizations.py
+        utils.py
+        parameters.py
+        units.py
+        connect.py
+        _io/
+            latex.py
+            __init__.py
+            html.py
+            model.py
+            mapping.py
+            ecsv.py
+            cosmology.py
+            table.py
+            utils.py
+            yaml.py
+            row.py
+        parameter/
+            __init__.py
+            _core.py
+            _converter.py
+        funcs/
+            __init__.py
+            optimize.py
+            comparison.py
+        flrw/
+            __init__.py
+            w0cdm.py
+            base.py
+            wpwazpcdm.py
+            lambdacdm.py
+            w0wzcdm.py
+            w0wacdm.py
+    nddata/
+        _testing.py
+        nddata.py
+        __init__.py
+        ccddata.py
+        decorators.py
+        flag_collection.py
+        blocks.py
+        utils.py
+        bitmask.py
+        nddata_base.py
+        nddata_withmixins.py
+        compat.py
+        nduncertainty.py
+        mixins/
+            __init__.py
+            ndslicing.py
+            ndio.py
+            ndarithmetic.py
+    modeling/
+        separable.py
+        __init__.py
+        bounding_box.py
+        core.py
+        optimizers.py
+        models.py
+        tabular.py
+        math_functions.py
+        projections.py
+        utils.py
+        convolution.py
+        polynomial.py
+        parameters.py
+        mappings.py
+        fitting.py
+        physical_models.py
+        statistic.py
+        spline.py
+        rotations.py
+        functional_models.py
+        powerlaws.py
+    io/
+        __init__.py
+        ascii/
+            daophot.py
+            latex.py
+            docs.py
+            __init__.py
+            html.py
+            qdp.py
+            core.py
+            ui.py
+            misc.py
+            rst.py
+            ecsv.py
+            fixedwidth.py
+            ipac.py
+            fastbasic.py
+            cds.py
+            sextractor.py
+            setup_package.py
+            mrt.py
+            connect.py
+            basic.py
+        registry/
+            __init__.py
+            core.py
+            base.py
+            compat.py
+            interface.py
+        votable/
+            exceptions.py
+            util.py
+            __init__.py
+            converters.py
+            table.py
+            tree.py
+            setup_package.py
+            volint.py
+            connect.py
+            xmlutil.py
+            ucd.py
+            validator/
+                __init__.py
+                html.py
+                main.py
+                result.py
+        fits/
+            fitstime.py
+            util.py
+            __init__.py
+            fitsrec.py
+            card.py
+            diff.py
+            column.py
+            header.py
+            verify.py
+            convenience.py
+            connect.py
+            file.py
+            scripts/
+                __init__.py
+                fitsinfo.py
+                fitscheck.py
+                fitsdiff.py
+                fitsheader.py
+            _tiled_compression/
+                __init__.py
+                codecs.py
+                utils.py
+                quantization.py
+                tiled_compression.py
+                setup_package.py
+            hdu/
+                __init__.py
+                compressed.py
+                streaming.py
+                hdulist.py
+                base.py
+                table.py
+                nonstandard.py
+                groups.py
+                image.py
+        misc/
+            __init__.py
+            parquet.py
+            yaml.py
+            connect.py
+            hdf5.py
+            pickle_helpers.py
+            pandas/
+                __init__.py
+                connect.py
+    extern/
+        __init__.py
+        _strptime.py
+        jquery/
+            __init__.py
+        configobj/
+            __init__.py
+            configobj.py
+            validate.py
+        ply/
+            ygen.py
+            __init__.py
+            ctokens.py
+            lex.py
+            cpp.py
+            yacc.py
+    samp/
+        standard_profile.py
+        hub.py
+        __init__.py
+        constants.py
+        web_profile.py
+        utils.py
+        errors.py
+        integrated_client.py
+        hub_proxy.py
+        setup_package.py
+        lockfile_helpers.py
+        client.py
+        hub_script.py
+    table/
+        np_utils.py
+        index.py
+        info.py
+        __init__.py
+        soco.py
+        ndarray_mixin.py
+        jsviewer.py
+        pprint.py
+        operations.py
+        column.py
+        table.py
+        meta.py
+        bst.py
+        setup_package.py
+        table_helpers.py
+        connect.py
+        sorted_array.py
+        pandas.py
+        groups.py
+        serialize.py
+        row.py
+        scripts/
+            __init__.py
+            showtable.py
+        mixins/
+            __init__.py
+            dask.py
+            registry.py
+    units/
+        equivalencies.py
+        __init__.py
+        cgs.py
+        physical.py
+        core.py
+        si.py
+        misc.py
+        deprecated.py
+        decorators.py
+        structured.py
+        astrophys.py
+        imperial.py
+        utils.py
+        quantity.py
+        cds.py
+        required_by_vounit.py
+        photometric.py
+        function/
+            __init__.py
+            core.py
+            mixin.py
+            logarithmic.py
+            units.py
+        quantity_helper/
+            function_helpers.py
+            __init__.py
+            converters.py
+            erfa.py
+            helpers.py
+            scipy_special.py
+        format/
+            latex.py
+            console.py
+            __init__.py
+            fits.py
+            generic_lextab.py
+            unicode_format.py
+            ogip_parsetab.py
+            base.py
+            cds_parsetab.py
+            ogip_lextab.py
+            vounit.py
+            utils.py
+            cds_lextab.py
+            cds.py
+            ogip.py
+            generic.py
+            generic_parsetab.py
+    config/
+        paths.py
+        __init__.py
+        configuration.py
+    time/
+        __init__.py
+        core.py
+        formats.py
+        utils.py
+        setup_package.py
+        time_helper/
+            function_helpers.py
+            __init__.py
+    convolution/
+        __init__.py
+        core.py
+        kernels.py
+        utils.py
+        setup_package.py
+        convolve.py
+    constants/
+        config.py
+        __init__.py
+        cgs.py
+        codata2014.py
+        si.py
+        codata2010.py
+        iau2015.py
+        astropyconst13.py
+        utils.py
+        iau2012.py
+        astropyconst20.py
+        astropyconst40.py
+        constant.py
+        codata2018.py
+    uncertainty/
+        __init__.py
+        core.py
+        distributions.py
+    _dev/
+        __init__.py
+        scm_version.py
+    timeseries/
+        downsample.py
+        __init__.py
+        core.py
+        sampled.py
+        binned.py
+        io/
+            __init__.py
+            kepler.py
+        periodograms/
+            __init__.py
+            base.py
+            lombscargle_multiband/
+                __init__.py
+                core.py
+                implementations/
+                    __init__.py
+                    mbflex_impl.py
+                    main.py
+                    mbfast_impl.py
+                    mle.py
+            lombscargle/
+                __init__.py
+                core.py
+                utils.py
+                _statistics.py
+                implementations/
+                    chi2_impl.py
+                    __init__.py
+                    fastchi2_impl.py
+                    fast_impl.py
+                    utils.py
+                    slow_impl.py
+                    main.py
+                    mle.py
+                    scipy_impl.py
+            bls/
+                __init__.py
+                core.py
+                setup_package.py
+                methods.py
+    wcs/
+        wcslint.py
+        docstrings.py
+        __init__.py
+        utils.py
+        setup_package.py
+        wcs.py
+        wcsapi/
+            high_level_api.py
+            __init__.py
+            utils.py
+            fitswcs.py
+            sliced_low_level_wcs.py
+            high_level_wcs_wrapper.py
+            low_level_api.py
+            conftest.py
+            wrappers/
+                __init__.py
+                sliced_wcs.py
+                base.py
+    coordinates/
+        erfa_astrom.py
+        angles.py
+        name_resolve.py
+        angle_lextab.py
+        jparser.py
+        __init__.py
+        solar_system.py
+        spectral_quantity.py
+        sites.py
+        angle_parsetab.py
+        angle_utilities.py
+        angle_formats.py
+        baseframe.py
+        transformations.py
+        calculation.py
+        sky_coordinate.py
+        errors.py
+        matrix_utilities.py
+        matching.py
+        funcs.py
+        attributes.py
+        earth_orientation.py
+        sky_coordinate_parsers.py
+        earth.py
+        distances.py
+        spectral_coordinate.py
+        polarization.py
+        representation/
+            __init__.py
+            cartesian.py
+            base.py
+            spherical.py
+            cylindrical.py
+            geodetic.py
+        builtin_frames/
+            ecliptic_transforms.py
+            fk5.py
+            fk4.py
+            fk4_fk5_transforms.py
+            supergalactic_transforms.py
+            itrs.py
+            __init__.py
+            hadec.py
+            baseradec.py
+            itrs_observed_transforms.py
+            hcrs.py
+            skyoffset.py
+            icrs_observed_transforms.py
+            supergalactic.py
+            utils.py
+            cirs_observed_transforms.py
+            icrs_fk5_transforms.py
+            galactic_transforms.py
+            icrs_cirs_transforms.py
+            galactic.py
+            ecliptic.py
+            galactocentric.py
+            icrs.py
+            cirs.py
+            intermediate_rotation_transforms.py
+            lsr.py
+            altaz.py
+            gcrs.py
+            equatorial.py
+    utils/
+        metadata.py
+        data.py
+        exceptions.py
+        console.py
+        state.py
+        __init__.py
+        introspection.py
+        shapes.py
+        data_info.py
+        misc.py
+        diff.py
+        collections.py
+        decorators.py
+        parsing.py
+        codegen.py
+        setup_package.py
+        argparse.py
+        iers/
+            __init__.py
+            iers.py
+        masked/
+            function_helpers.py
+            __init__.py
+            core.py
+        compat/
+            __init__.py
+            numpycompat.py
+            misc.py
+            optional_deps.py
+        xml/
+            unescaper.py
+            __init__.py
+            iterparser.py
+            writer.py
+            check.py
+            setup_package.py
+            validate.py
+    stats/
+        biweight.py
+        __init__.py
+        bayesian_blocks.py
+        sigma_clipping.py
+        info_theory.py
+        histogram.py
+        circstats.py
+        funcs.py
+        setup_package.py
+        jackknife.py
+        spatial.py
+        lombscargle/
+            __init__.py
+        bls/
+            __init__.py
+examples/
+    io/
+        plot_fits-image.py
+        skip_create-large-fits.py
+        modify-fits-header.py
+        fits-tables.py
+        create-mef.py
+        split-jpeg-to-fits.py
+    template/
+        example-template.py
+    coordinates/
+        rv-to-gsr.py
+        plot_galactocentric-frame.py
+        plot_sgr-coordinate-frame.py
+        plot_obs-planning.py
+docs/
+    conf.py
+    conftest.py
+    nddata/
+        examples/
+            cutout2d_tofits.py
+    wcs/
+        examples/
+            cube_wcs.py
+            from_file.py
+            programmatic.py
+.pyinstaller
+    run_astropy_tests.py
+    hooks/
+        hook-skyfield.py
+
+###
+
+Please only provide the full path and return at most 5 files.
+The returned files should be separated by new lines ordered by most to least important and wrapped with ```
+For example:
+```
+file1.py
+file2.py
+```
+2026-06-26 11:26:04,859 - INFO - ================================================================================
+2026-06-26 11:26:04,859 - INFO - Initializing a decoder model: deepseek-v4-pro ...
+2026-06-26 11:26:04,914 - INFO - Creating API request
+2026-06-26 11:26:33,114 - INFO - API response ChatCompletion(id='d62d9eda-8169-4463-8d58-301172106fe8', choices=[Choice(finish_reason='stop', index=0, logprobs=None, message=ChatCompletionMessage(content='```\nastropy/nddata/mixins/ndarithmetic.py\nastropy/nddata/nddata.py\n```', refusal=None, role='assistant', annotations=None, audio=None, function_call=None, tool_calls=None, reasoning_content='We need to identify the files that are most likely to be edited to fix the problem described: "NDDataRef mask propagation fails when one of the operand does not have a mask". This is an astropy issue about arithmetic operations (like multiply) with NDDataRef objects where one operand lacks a mask, and using `handle_mask=np.bitwise_or` leads to TypeError.\n\nLooking at the repository structure, the relevant area is likely `astropy/nddata/`. The problem mentions `NDDataRef` which is probably defined in `astropy/nddata/nddata.py` or `astropy/nddata/nddata_ref.py`? Looking at the structure:\n\n- `astropy/nddata/__init__.py`\n- `astropy/nddata/nddata.py` (maybe NDDataRef)\n- `astropy/nddata/ccddata.py`\n- `astropy/nddata/mixins/ndarithmetic.py` (likely handles arithmetic and mask propagation)\n- `astropy/nddata/mixins/ndslicing.py`\n- `astropy/nddata/mixins/ndio.py`\n- `astropy/nddata/decorators.py`\n- `astropy/nddata/nddata_base.py`\n- `astropy/nddata/nddata_withmixins.py`\n- `astropy/nddata/compat.py`\n- `astropy/nddata/bitmask.py`\n- `astropy/nddata/blocks.py`\n- `astropy/nddata/flag_collection.py`\n- `astropy/nddata/nduncertainty.py`\n- `astropy/nddata/utils.py`\n\nThe arithmetic methods (multiply, add, etc.) are likely implemented in mixins, particularly `ndarithmetic.py`. In that file, there will be code handling mask combination (e.g., bitwise_or). The error occurs because when one operand has no mask, the code might be constructing a mask of None values and trying to bitwise_or with an integer array.\n\nThus, the primary file to fix would be `astropy/nddata/mixins/ndarithmetic.py`. There might also be related utility functions in `astropy/nddata/utils.py` or `astropy/nddata/bitmask.py` if the mask handling goes through those. But the description points to `handle_mask` propagation in arithmetic operations.\n\nI should also consider if `NDDataRef` is defined in `nddata.py` and has a `multiply` method that calls the mixin? `NDDataRef` likely uses mixins like `NDArithmeticMixin`. So the core logic is likely in `ndarithmetic.py`.\n\nAdditionally, the error occurs when the mask is None, so the fix might involve checking for None mask before applying bitwise_or.\n\nThus the most important files to edit would be:\n\n1. `astropy/nddata/mixins/ndarithmetic.py` - contains arithmetic operations and mask propagation logic.\n2. `astropy/nddata/nddata.py` - if NDDataRef is defined there and has any mask handling (less likely).\n3. `astropy/nddata/utils.py` - possible utility functions for mask handling.\n4. `astropy/nddata/bitmask.py` - if mask combining uses bitmask operations.\n5. Possibly a test file, but the request is for files to edit to fix the problem, not necessarily test files. But they might ask for up to 5, and a test file could be included to verify fix. However, the problem description only mentions the bug; test files might be in `astropy/nddata/tests/` but the structure doesn\'t show a tests subdirectory explicitly. In the given repository structure, there is no `tests` folder under nddata? It only shows the listed files. Possibly tests are elsewhere, like `astropy/tests/`? In the structure, there is no `tests` directory under nddata. So I\'ll focus on source files.\n\nGiven typical astropy structure, the arithmetic mixin is the key. Also, `NDDataRef` likely inherits from `NDData` and uses `NDArithmeticMixin`. So the mixin file is the one to edit. The other files might not need changes.\n\nI\'ll provide a list of up to 5 files, starting with the most important.\n\n```\nastropy/nddata/mixins/ndarithmetic.py\nastropy/nddata/bitmask.py\nastropy/nddata/utils.py\nastropy/nddata/nddata.py\nastropy/nddata/compat.py\n```\nBut maybe `compat.py` is less relevant. However, I\'ll prioritize.\n\nThe description: "mask propagation when doing arithmetic, in particular with `handle_mask=np.bitwise_or` fails." So the fix likely involves checking for None masks in the `_arithmetic_mask` method or similar.\n\nThus, I\'ll output:\n\n```\nastropy/nddata/mixins/ndarithmetic.py\nastropy/nddata/bitmask.py\nastropy/nddata/utils.py\nastropy/nddata/nddata.py\nastropy/nddata/compat.py\n```\n\nBut I\'ll keep it to 2 or 3 maybe. The request says "at most 5 files". I can list only the most relevant ones. I\'ll include the top 3.\n\nGiven the instruction: "Please look through the following GitHub problem description and Repository structure and provide a list of files that one would need to edit to fix the problem." So I\'ll provide the absolute paths. I\'ll output them separated by new lines and wrapped in triple backticks.\n\nI\'ll decide on:\n\n```\nastropy/nddata/mixins/ndarithmetic.py\nastropy/nddata/nddata.py\nastropy/nddata/utils.py\n```\n\nBut to be safe, I\'ll include 2 files that are most likely:\n\n1. astropy/nddata/mixins/ndarithmetic.py\n2. astropy/nddata/bitmask.py\n\nI\'ll go with those two. The problem is specifically about bitwise_or operation, so bitmask.py might be involved if the mask combining is done there. However, handle_mask is passed to the arithmetic method, so the logic is in ndarithmetic.py. I\'ll include bitmask.py as a secondary file because maybe the combination function is defined there. But reading the description: "the mask propagation when doing arithmetic, in particular with `handle_mask=np.bitwise_or` fails" - it\'s the propagation that fails, not the bitwise_or function itself. So bitwise_or is from numpy, not bitmask.py. So bitmask.py might not be relevant. I\'ll drop it.\n\nThus, I\'ll list:\n\n```\nastropy/nddata/mixins/ndarithmetic.py\nastropy/nddata/nddata.py\n```\n\nAnd maybe a test file if present, but not listed. So I\'ll just provide two files.\n\nI\'ll answer with:\n\n```\nastropy/nddata/mixins/ndarithmetic.py\nastropy/nddata/nddata.py\n```\n\nBut the request says "at most 5 files". I\'ll provide them. I\'ll also consider `astropy/nddata/__init__.py` to expose fixes? Unlikely.\n\nI\'ll output just the two.'))], created=1782444365, model='deepseek-v4-pro', object='chat.completion', moderation=None, service_tier=None, system_fingerprint='fp_9954b31ca7_prod0820_fp8_kvcache_20260402', usage=CompletionUsage(completion_tokens=1568, prompt_tokens=3803, total_tokens=5371, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=1541, rejected_prediction_tokens=None), prompt_tokens_details=PromptTokensDetails(audio_tokens=None, cached_tokens=0), prompt_cache_hit_tokens=0, prompt_cache_miss_tokens=3803))
+2026-06-26 11:26:33,244 - INFO - ```
+astropy/nddata/mixins/ndarithmetic.py
+astropy/nddata/nddata.py
+```

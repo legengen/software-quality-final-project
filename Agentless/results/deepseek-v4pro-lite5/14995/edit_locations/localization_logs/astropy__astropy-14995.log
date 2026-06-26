@@ -1,0 +1,584 @@
+2026-06-26 11:28:08,110 - INFO - Processing bug astropy__astropy-14995
+2026-06-26 11:28:38,623 - INFO - ================ localize astropy__astropy-14995 ================
+2026-06-26 11:28:38,840 - INFO - prompting with message:
+
+Please review the following GitHub problem description and relevant files, and provide a set of locations that need to be edited to fix the issue.
+The locations can be specified as class names, function or method names, or exact line numbers that require modification.
+
+### GitHub Problem Description ###
+In v5.3, NDDataRef mask propagation fails when one of the operand does not have a mask
+### Description
+
+This applies to v5.3. 
+
+It looks like when one of the operand does not have a mask, the mask propagation when doing arithmetic, in particular with `handle_mask=np.bitwise_or` fails.  This is not a problem in v5.2.
+
+I don't know enough about how all that works, but it seems from the error that the operand without a mask is set as a mask of None's and then the bitwise_or tries to operate on an integer and a None and fails.
+
+### Expected behavior
+
+When one of the operand does not have mask, the mask that exists should just be copied over to the output.  Or whatever was done in that situation in v5.2 where there's no problem.
+
+### How to Reproduce
+
+This is with v5.3.   With v5.2, there are no errors.
+
+```
+>>> import numpy as np
+>>> from astropy.nddata import NDDataRef
+
+>>> array = np.array([[0, 1, 0], [1, 0, 1], [0, 1, 0]])
+>>> mask = np.array([[0, 1, 64], [8, 0, 1], [2, 1, 0]])
+
+>>> nref_nomask = NDDataRef(array)
+>>> nref_mask = NDDataRef(array, mask=mask)
+
+# multiply no mask by constant (no mask * no mask)
+>>> nref_nomask.multiply(1., handle_mask=np.bitwise_or).mask   # returns nothing, no mask,  OK
+
+# multiply no mask by itself (no mask * no mask)
+>>> nref_nomask.multiply(nref_nomask, handle_mask=np.bitwise_or).mask # return nothing, no mask, OK
+
+# multiply mask by constant (mask * no mask)
+>>> nref_mask.multiply(1., handle_mask=np.bitwise_or).mask
+...
+TypeError: unsupported operand type(s) for |: 'int' and 'NoneType'
+
+# multiply mask by itself (mask * mask)
+>>> nref_mask.multiply(nref_mask, handle_mask=np.bitwise_or).mask
+array([[ 0,  1, 64],
+       [ 8,  0,  1],
+       [ 2,  1,  0]])
+
+# multiply mask by no mask (mask * no mask)
+>>> nref_mask.multiply(nref_nomask, handle_mask=np.bitwise_or).mask
+...
+TypeError: unsupported operand type(s) for |: 'int' and 'NoneType'
+```
+
+
+### Versions
+
+>>> import sys; print("Python", sys.version)
+Python 3.10.11 | packaged by conda-forge | (main, May 10 2023, 19:07:22) [Clang 14.0.6 ]
+>>> import astropy; print("astropy", astropy.__version__)
+astropy 5.3
+>>> import numpy; print("Numpy", numpy.__version__)
+Numpy 1.24.3
+>>> import erfa; print("pyerfa", erfa.__version__)
+pyerfa 2.0.0.3
+>>> import scipy; print("Scipy", scipy.__version__)
+Scipy 1.10.1
+>>> import matplotlib; print("Matplotlib", matplotlib.__version__)
+Matplotlib 3.7.1
+
+
+
+###
+### astropy/nddata/mixins/ndarithmetic.py
+...
+475|
+476|        else:
+477|            # Both have uncertainties so just propagate.
+478|
+479|            # only supply the axis kwarg if one has been specified for a collapsing operation
+480|            axis_kwarg = dict(axis=kwds["axis"]) if "axis" in kwds else dict()
+481|            return self.uncertainty.propagate(
+482|                operation, operand, result, correlation, **axis_kwarg
+483|            )
+484|
+485|    def _arithmetic_mask(self, operation, operand, handle_mask, axis=None, **kwds):
+486|        """
+487|        Calculate the resulting mask.
+488|
+489|        This is implemented as the piecewise ``or`` operation if both have a
+490|        mask.
+491|
+492|        Parameters
+493|        ----------
+494|        operation : callable
+495|            see :meth:`NDArithmeticMixin._arithmetic` parameter description.
+496|            By default, the ``operation`` will be ignored.
+497|
+498|        operand : `NDData`-like instance
+499|            The second operand wrapped in an instance of the same class as
+500|            self.
+501|
+502|        handle_mask : callable
+503|            see :meth:`NDArithmeticMixin.add`
+504|
+505|        kwds :
+506|            Additional parameters given to ``handle_mask``.
+507|
+508|        Returns
+509|        -------
+510|        result_mask : any type
+511|            If only one mask was present this mask is returned.
+512|            If neither had a mask ``None`` is returned. Otherwise
+513|            ``handle_mask`` must create (and copy) the returned mask.
+514|        """
+515|        # If only one mask is present we need not bother about any type checks
+516|        if (
+517|            self.mask is None and operand is not None and operand.mask is None
+518|        ) or handle_mask is None:
+519|            return None
+520|        elif self.mask is None and operand is not None:
+521|            # Make a copy so there is no reference in the result.
+522|            return deepcopy(operand.mask)
+523|        elif operand is None:
+524|            return deepcopy(self.mask)
+525|        else:
+526|            # Now lets calculate the resulting mask (operation enforces copy)
+527|            return handle_mask(self.mask, operand.mask, **kwds)
+528|
+529|    def _arithmetic_wcs(self, operation, operand, compare_wcs, **kwds):
+530|        """
+531|        Calculate the resulting wcs.
+532|
+533|        There is actually no calculation involved but it is a good place to
+534|        compare wcs information of both operands. This is currently not working
+535|        properly with `~astropy.wcs.WCS` (which is the suggested class for
+536|        storing as wcs property) but it will not break it neither.
+537|
+...
+
+
+
+
+###
+
+Please provide the class name, function or method name, or the exact line numbers that need to be edited.
+### Examples:
+```
+full_path1/file1.py
+line: 10
+class: MyClass1
+line: 51
+
+full_path2/file2.py
+function: MyClass2.my_method
+line: 12
+
+full_path3/file3.py
+function: my_function
+line: 24
+line: 156
+```
+
+Return just the location(s)
+
+2026-06-26 11:28:38,840 - INFO - ================================================================================
+2026-06-26 11:28:39,092 - INFO - Initializing a decoder model: deepseek-v4-pro ...
+2026-06-26 11:28:39,157 - INFO - Creating API request
+2026-06-26 11:29:16,668 - INFO - API response ChatCompletion(id='c251b110-c6a6-4624-9e07-630fcc49ee80', choices=[Choice(finish_reason='stop', index=0, logprobs=None, message=ChatCompletionMessage(content='astropy/nddata/mixins/ndarithmetic.py\nclass: NDArithmeticMixin\nfunction: _arithmetic_mask\nline: 516\nline: 520\nline: 523\nline: 527', refusal=None, role='assistant', annotations=None, audio=None, function_call=None, tool_calls=None, reasoning_content='We are asked: "Please review the following GitHub problem description and relevant files, and provide a set of locations that need to be edited to fix the issue. The locations can be specified as class names, function or method names, or exact line numbers that require modification."\n\nThe problem description: In v5.3, NDDataRef mask propagation fails when one operand does not have a mask. Specifically, when doing arithmetic with handle_mask=np.bitwise_or, if one operand has no mask (mask is None), the code fails because it attempts to use bitwise_or on an integer mask and None. This indicates that when one operand has a mask and the other doesn\'t, the _arithmetic_mask method is not correctly handling it: it returns the mask of the operand that has a mask, but the handling of the case where self.mask is None and operand is not None, or vice versa, may be returning a deepcopy of the existing mask (which is fine) but the error occurs when calling handle_mask with self.mask and operand.mask even when one is None? Actually, looking at the code snippet:\n\n```python\ndef _arithmetic_mask(self, operation, operand, handle_mask, axis=None, **kwds):\n    # If only one mask is present we need not bother about any type checks\n    if (\n        self.mask is None and operand is not None and operand.mask is None\n    ) or handle_mask is None:\n        return None\n    elif self.mask is None and operand is not None:\n        # Make a copy so there is no reference in the result.\n        return deepcopy(operand.mask)\n    elif operand is None:\n        return deepcopy(self.mask)\n    else:\n        # Now lets calculate the resulting mask (operation enforces copy)\n        return handle_mask(self.mask, operand.mask, **kwds)\n```\n\nThe error says: "TypeError: unsupported operand type(s) for |: \'int\' and \'NoneType\'"\n\nSo there is a case where handle_mask is called with one mask being None. But according to the code, the `elif self.mask is None and operand is not None` branch should catch if self.mask is None and operand is not None. However, the condition `operand is not None` is checking whether the operand object itself is not None, not operand.mask. But wait: what if operand is not None but operand.mask is None? That is: self has mask, operand does not. The branch that would catch that is `elif operand is None:`? That checks if operand object is None, not operand.mask. So if operand is an NDDataRef with mask=None, `operand is None` is False. So it falls to the `else` block where both self and operand are non-None objects, but their masks could be None. Then handle_mask is called with possibly None mask. That\'s the bug.\n\nIn the problem description, they have:\n\n- `nref_nomask` (mask=None) multiplying by constant 1. (constant is probably handled as an NDDataRef with mask=None?) But the error occurs with `nref_mask.multiply(1., handle_mask=np.bitwise_or).mask`. The constant 1. is likely converted to an NDDataRef with no mask. So `operand` is an NDDataRef with mask=None. The condition `self.mask is None and operand is not None` would be False because self.mask is not None (it has a mask). `operand is None` is False. So it goes to `else` and calls `handle_mask(self.mask, operand.mask, **kwds)` where operand.mask is None. That leads to the bitwise_or error. Similarly for multiplication of mask by no mask.\n\nSo the fix should ensure that when one of the masks is None, the other mask is copied, not that handle_mask is called. The condition should check the operand\'s mask, not operand itself. Also, the case where self.mask is not None and operand.mask is None is not handled. The `elif self.mask is None and operand is not None` handles when self has no mask but operand has one. So we need an analogous `elif operand.mask is None` and self.mask is not None? Actually, the current logic:\n\n- If (self.mask is None and operand is not None and operand.mask is None) or handle_mask is None: return None.\n- elif self.mask is None and operand is not None: return deepcopy(operand.mask)  # Here operand has mask (since previous condition checks if both None). So this handles self no mask, operand has mask.\n- elif operand is None: return deepcopy(self.mask)  # This handles when operand is None object, meaning self is the only operand? But if operand is None? The method signature: _arithmetic_mask(self, operation, operand, ...). When is operand None? Likely when there is no second operand? But the calling code probably passes the operand as an NDDataRef or None? Looking at the problem, when multiplying by constant, does it pass operand=None? Maybe it converts constant to an NDDataRef, so operand is never None. That might be a separate issue. However, for the mask-by-no-mask case, operand is not None, operand.mask is None, self.mask is not None. So it falls to else, which is wrong. \n\nSo we need to adjust conditions to properly check operand.mask is None and self.mask is not None. And also handle the case when operand is None (maybe for unary operations?) but that\'s not part of this bug.\n\nThe fix location: function `_arithmetic_mask` in `astropy/nddata/mixins/ndarithmetic.py`, around lines 516-527. Specifically, the conditions need to be corrected. We should likely add a condition `elif operand is not None and operand.mask is None:` to return deepcopy(self.mask), and maybe adjust the earlier conditions.\n\nAlternatively, we could change the `else` block to check for None masks before calling handle_mask. But the more consistent fix is to ensure that when either mask is None, the non-None mask is returned as a copy, and handle_mask is only called when both are not None.\n\nThe line numbers: From the provided snippet, line numbers are given:\n\n475|... 485|    def _arithmetic_mask(self, operation, operand, handle_mask, axis=None, **kwds):\n\nSo the method starts at line 485. The if-elif-else block is lines 516-527. We need to edit the conditions.\n\nThus, locations: astropy/nddata/mixins/ndarithmetic.py, function `_arithmetic_mask`, lines 516 to 527.\n\nWe could give: \n\n- astropy/nddata/mixins/ndarithmetic.py\n  function: _arithmetic_mask\n  line: 516\n  line: 517\n  line: 520\n  line: 523\n  line: 527\n\nBut more concisely, we can just provide the function name and possibly the line range.\n\nThe instruction: "Provide a set of locations that need to be edited to fix the issue. The locations can be specified as class names, function or method names, or exact line numbers that require modification."\n\nExamples show: full_path, function, line. So we should output:\n\nastropy/nddata/mixins/ndarithmetic.py\nfunction: _arithmetic_mask\nline: 516\nline: 520\nline: 523\nline: 527\n\nBut the exact lines to change: the condition at line 516 (if) and the elif/else branches at lines 520-527. Maybe we need to be more precise. The main fix is to modify the condition that currently checks `self.mask is None and operand is not None` to properly handle when operand has no mask but self does. So we could change the elif condition at line 520 from `elif self.mask is None and operand is not None:` to something that checks operand.mask? Or add a new branch. I\'d propose replacing lines 516-527 with corrected logic. So the location includes those lines.\n\nGiven the request, I\'ll list:\n\n- astropy/nddata/mixins/ndarithmetic.py\n  function: _arithmetic_mask\n  line: 516\n  line: 520\n  line: 523\n  line: 527\n\nBut maybe the bug is only in the condition not covering operand.mask is None. So we could simply change line 520 to: `elif self.mask is None and operand is not None and operand.mask is not None:`? But then the case self.mask not None, operand.mask None would still fall into else. So we need to add an elif for that. So more comprehensive.\n\nI\'ll output the function name and the specific line numbers that need modification (the whole conditional block). I\'ll include the lines where changes are needed. Actually, the simplest approach is to replace the entire conditional block (lines 516-527) with corrected logic. So I could just say:\n\nastropy/nddata/mixins/ndarithmetic.py\nfunction: _arithmetic_mask\nlines: 516-527\n\nBut to follow the example format, they often list each line separately. I\'ll provide:\n\nastropy/nddata/mixins/ndarithmetic.py\nfunction: _arithmetic_mask\nline: 516\nline: 520\nline: 523\nline: 527\n\nThat indicates these are the lines that need editing. I think that\'s clear enough.\n\nAlternatively, I could specify:\n\nastropy/nddata/mixins/ndarithmetic.py\nfunction: NDArithmeticMixin._arithmetic_mask\nline: 516\nline: 520\nline: 523\nline: 527\n\nBut the problem description didn\'t give the class name, but from the file, it\'s part of NDArithmeticMixin. The method _arithmetic_mask is inside that mixin. So I can include class name if needed. The examples include class names sometimes. I\'ll include the class name: NDArithmeticMixin. However, it wasn\'t in the provided snippet, but we can infer. The file snippet shows the method is inside the class (based on indentation and context). I\'ll check: the lines before 485: there is an else block ending at 483, and then 485 starts a new method. The class likely is NDArithmeticMixin. So:\n\nastropy/nddata/mixins/ndarithmetic.py\nclass: NDArithmeticMixin\nfunction: _arithmetic_mask\nline: 516\nline: 520\nline: 523\nline: 527\n\nThat seems good.\n\nI\'ll provide that.'))], created=1782444519, model='deepseek-v4-pro', object='chat.completion', moderation=None, service_tier=None, system_fingerprint='fp_9954b31ca7_prod0820_fp8_kvcache_20260402', usage=CompletionUsage(completion_tokens=2333, prompt_tokens=1669, total_tokens=4002, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=2284, rejected_prediction_tokens=None), prompt_tokens_details=PromptTokensDetails(audio_tokens=None, cached_tokens=0), prompt_cache_hit_tokens=0, prompt_cache_miss_tokens=1669))
+2026-06-26 11:29:16,668 - INFO - ==== raw output ====
+2026-06-26 11:29:16,668 - INFO - astropy/nddata/mixins/ndarithmetic.py
+class: NDArithmeticMixin
+function: _arithmetic_mask
+line: 516
+line: 520
+line: 523
+line: 527
+2026-06-26 11:29:16,668 - INFO - ================================================================================
+2026-06-26 11:29:16,668 - INFO - ==== extracted locs ====
+2026-06-26 11:29:16,668 - INFO - astropy/nddata/mixins/ndarithmetic.py
+2026-06-26 11:29:16,668 - INFO - astropy/nddata/nddata.py
+2026-06-26 11:29:16,668 - INFO - ================================================================================
+2026-06-26 11:29:16,668 - INFO - ==== Input coarse_locs
+2026-06-26 11:29:16,668 - INFO - 
+### astropy/nddata/mixins/ndarithmetic.py
+function: NDArithmeticMixin._arithmetic_mask
+### astropy/nddata/nddata.py
+
+
+2026-06-26 11:29:17,006 - INFO - No valid edit locations found ... retrying with higher temperature ...
+2026-06-26 11:29:17,325 - INFO - prompting with message:
+
+Please review the following GitHub problem description and relevant files, and provide a set of locations that need to be edited to fix the issue.
+The locations can be specified as class names, function or method names, or exact line numbers that require modification.
+
+### GitHub Problem Description ###
+In v5.3, NDDataRef mask propagation fails when one of the operand does not have a mask
+### Description
+
+This applies to v5.3. 
+
+It looks like when one of the operand does not have a mask, the mask propagation when doing arithmetic, in particular with `handle_mask=np.bitwise_or` fails.  This is not a problem in v5.2.
+
+I don't know enough about how all that works, but it seems from the error that the operand without a mask is set as a mask of None's and then the bitwise_or tries to operate on an integer and a None and fails.
+
+### Expected behavior
+
+When one of the operand does not have mask, the mask that exists should just be copied over to the output.  Or whatever was done in that situation in v5.2 where there's no problem.
+
+### How to Reproduce
+
+This is with v5.3.   With v5.2, there are no errors.
+
+```
+>>> import numpy as np
+>>> from astropy.nddata import NDDataRef
+
+>>> array = np.array([[0, 1, 0], [1, 0, 1], [0, 1, 0]])
+>>> mask = np.array([[0, 1, 64], [8, 0, 1], [2, 1, 0]])
+
+>>> nref_nomask = NDDataRef(array)
+>>> nref_mask = NDDataRef(array, mask=mask)
+
+# multiply no mask by constant (no mask * no mask)
+>>> nref_nomask.multiply(1., handle_mask=np.bitwise_or).mask   # returns nothing, no mask,  OK
+
+# multiply no mask by itself (no mask * no mask)
+>>> nref_nomask.multiply(nref_nomask, handle_mask=np.bitwise_or).mask # return nothing, no mask, OK
+
+# multiply mask by constant (mask * no mask)
+>>> nref_mask.multiply(1., handle_mask=np.bitwise_or).mask
+...
+TypeError: unsupported operand type(s) for |: 'int' and 'NoneType'
+
+# multiply mask by itself (mask * mask)
+>>> nref_mask.multiply(nref_mask, handle_mask=np.bitwise_or).mask
+array([[ 0,  1, 64],
+       [ 8,  0,  1],
+       [ 2,  1,  0]])
+
+# multiply mask by no mask (mask * no mask)
+>>> nref_mask.multiply(nref_nomask, handle_mask=np.bitwise_or).mask
+...
+TypeError: unsupported operand type(s) for |: 'int' and 'NoneType'
+```
+
+
+### Versions
+
+>>> import sys; print("Python", sys.version)
+Python 3.10.11 | packaged by conda-forge | (main, May 10 2023, 19:07:22) [Clang 14.0.6 ]
+>>> import astropy; print("astropy", astropy.__version__)
+astropy 5.3
+>>> import numpy; print("Numpy", numpy.__version__)
+Numpy 1.24.3
+>>> import erfa; print("pyerfa", erfa.__version__)
+pyerfa 2.0.0.3
+>>> import scipy; print("Scipy", scipy.__version__)
+Scipy 1.10.1
+>>> import matplotlib; print("Matplotlib", matplotlib.__version__)
+Matplotlib 3.7.1
+
+
+
+###
+### astropy/nddata/mixins/ndarithmetic.py
+...
+475|
+476|        else:
+477|            # Both have uncertainties so just propagate.
+478|
+479|            # only supply the axis kwarg if one has been specified for a collapsing operation
+480|            axis_kwarg = dict(axis=kwds["axis"]) if "axis" in kwds else dict()
+481|            return self.uncertainty.propagate(
+482|                operation, operand, result, correlation, **axis_kwarg
+483|            )
+484|
+485|    def _arithmetic_mask(self, operation, operand, handle_mask, axis=None, **kwds):
+486|        """
+487|        Calculate the resulting mask.
+488|
+489|        This is implemented as the piecewise ``or`` operation if both have a
+490|        mask.
+491|
+492|        Parameters
+493|        ----------
+494|        operation : callable
+495|            see :meth:`NDArithmeticMixin._arithmetic` parameter description.
+496|            By default, the ``operation`` will be ignored.
+497|
+498|        operand : `NDData`-like instance
+499|            The second operand wrapped in an instance of the same class as
+500|            self.
+501|
+502|        handle_mask : callable
+503|            see :meth:`NDArithmeticMixin.add`
+504|
+505|        kwds :
+506|            Additional parameters given to ``handle_mask``.
+507|
+508|        Returns
+509|        -------
+510|        result_mask : any type
+511|            If only one mask was present this mask is returned.
+512|            If neither had a mask ``None`` is returned. Otherwise
+513|            ``handle_mask`` must create (and copy) the returned mask.
+514|        """
+515|        # If only one mask is present we need not bother about any type checks
+516|        if (
+517|            self.mask is None and operand is not None and operand.mask is None
+518|        ) or handle_mask is None:
+519|            return None
+520|        elif self.mask is None and operand is not None:
+521|            # Make a copy so there is no reference in the result.
+522|            return deepcopy(operand.mask)
+523|        elif operand is None:
+524|            return deepcopy(self.mask)
+525|        else:
+526|            # Now lets calculate the resulting mask (operation enforces copy)
+527|            return handle_mask(self.mask, operand.mask, **kwds)
+528|
+529|    def _arithmetic_wcs(self, operation, operand, compare_wcs, **kwds):
+530|        """
+531|        Calculate the resulting wcs.
+532|
+533|        There is actually no calculation involved but it is a good place to
+534|        compare wcs information of both operands. This is currently not working
+535|        properly with `~astropy.wcs.WCS` (which is the suggested class for
+536|        storing as wcs property) but it will not break it neither.
+537|
+...
+
+
+
+
+###
+
+Please provide the class name, function or method name, or the exact line numbers that need to be edited.
+### Examples:
+```
+full_path1/file1.py
+line: 10
+class: MyClass1
+line: 51
+
+full_path2/file2.py
+function: MyClass2.my_method
+line: 12
+
+full_path3/file3.py
+function: my_function
+line: 24
+line: 156
+```
+
+Return just the location(s)
+
+2026-06-26 11:29:17,325 - INFO - ================================================================================
+2026-06-26 11:29:17,326 - INFO - Initializing a decoder model: deepseek-v4-pro ...
+2026-06-26 11:29:17,391 - INFO - Creating API request
+2026-06-26 11:29:54,131 - INFO - API response ChatCompletion(id='8ff928ed-d6b6-4cbf-a0b4-e58871b84f1e', choices=[Choice(finish_reason='stop', index=0, logprobs=None, message=ChatCompletionMessage(content='astropy/nddata/mixins/ndarithmetic.py\nclass: NDArithmeticMixin\nfunction: _arithmetic_mask\nline: 516\nline: 517\nline: 518\nline: 519\nline: 520\nline: 521\nline: 522\nline: 523\nline: 524\nline: 525\nline: 526\nline: 527', refusal=None, role='assistant', annotations=None, audio=None, function_call=None, tool_calls=None, reasoning_content='We are asked to review the problem description and relevant files, and provide locations that need to be edited to fix the issue. The user provided the problem: NDDataRef mask propagation fails when one operand doesn\'t have a mask. The error occurs in `_arithmetic_mask` method in `ndarithmetic.py` because when one operand has no mask (`self.mask` is None but operand is not None and has a mask), or vice versa, the code is correctly returning a deepcopy of the mask (lines 522, 524). However, the error occurs when calling `handle_mask` with both masks? Wait, the error trace shows: `TypeError: unsupported operand type(s) for |: \'int\' and \'NoneType\'`. Meaning that when both masks are present, it tries to compute `handle_mask(self.mask, operand.mask)`, but one of the masks is None. Looking at the logic in `_arithmetic_mask`:\n\n```python\nif (self.mask is None and operand is not None and operand.mask is None) or handle_mask is None:\n    return None\nelif self.mask is None and operand is not None:\n    return deepcopy(operand.mask)\nelif operand is None:\n    return deepcopy(self.mask)\nelse:\n    # Now lets calculate the resulting mask (operation enforces copy)\n    return handle_mask(self.mask, operand.mask, **kwds)\n```\n\nWait, there\'s a subtle bug: The condition `self.mask is None and operand is not None and operand.mask is None` covers the case where self has no mask, operand is not None, and operand.mask is None. What about the case where operand is not None but has a mask, and self has a mask? That\'s covered by the `else` block because both self.mask and operand.mask are not None? Actually, the conditions:\n\n- First condition: if (self.mask is None and operand is not None and operand.mask is None) or handle_mask is None: return None. So if both self and operand have no mask (or handle_mask is None), return None.\n\n- elif self.mask is None and operand is not None: This is reached if self.mask is None and operand is not None. But wait, if operand.mask is not None, then the previous condition (self.mask is None and operand is not None and operand.mask is None) would be False, so it falls into this elif. So this elif handles the case where self has no mask but operand has a mask. It correctly deepcopies operand.mask.\n\n- elif operand is None: This handles when operand is None, so only self has a mask? If operand is None, then self.mask is definitely not None? But the condition doesn\'t check self.mask. If self.mask is also None, then both are None and should return None. However, the earlier condition would catch that only if handle_mask is None or the first condition is True. But if handle_mask is not None and self.mask is None and operand is None, then the first condition is `(True and False and ...)`? Actually, `self.mask is None` would be True, `operand is not None` would be False, so the first condition\'s first part is False. So it would go to elif self.mask is None and operand is not None: that\'s False because operand is None. Then to elif operand is None: True. So it would return deepcopy(self.mask), which is None. That\'s a bug: it would deepcopy None, which is fine, but it would return None instead of None? Actually deepcopy(None) returns None, so that works. But the logic is a bit convoluted.\n\nBut the real problem is the `else` block: `return handle_mask(self.mask, operand.mask, **kwds)`. This is executed when both self.mask and operand.mask are not None? But based on the conditions, it could also be reached when one of them is None? Let\'s check: The else is reached if none of the previous conditions are True. So:\n\nCondition 1: (self.mask is None and operand is not None and operand.mask is None) or handle_mask is None. If self.mask is not None, then condition1 is False (unless handle_mask is None, which would return None regardless). So we bypass it. Condition2: self.mask is None and operand is not None. If self.mask is not None, then False. Condition3: operand is None. If operand is not None, False. So else reaches when self.mask is not None and operand is not None. But is it guaranteed that operand.mask is not None? The condition didn\'t check that. Consider the case: self.mask is not None, operand is not None, but operand.mask is None. Condition1: self.mask is None? False, so condition1 False (unless handle_mask is None, which again returns None). Condition2: self.mask is None? False. Condition3: operand is None? False. So else block executes, and it tries `handle_mask(self.mask, operand.mask, **kwds)` with operand.mask being None. That\'s the bug: when one operand has a mask and the other does not, it falls into the else block and passes one mask as None to handle_mask, which expects both masks to be non-None. In the examples given: `nref_mask.multiply(1., ...)` leads to `nref_mask` having mask, and `NDDataRef` for constant 1. probably doesn\'t have a mask. So `self.mask` is not None, `operand` is not None but `operand.mask` is None. The current code would reach the else block and call `handle_mask(self.mask, operand.mask)` causing the TypeError.\n\nSo the fix is to handle the case where one has mask and the other doesn\'t, by returning a copy of the existing mask. The logic in the conditional statements should catch that. We need to edit the `_arithmetic_mask` method to properly handle that scenario.\n\nThe provided file snippet shows `_arithmetic_mask` from line 485 to 527. So we need to modify that function. The exact lines that need editing: The condition structure. Probably need to add a check for `operand.mask is None` or `self.mask is None` in the else. Or restructure the conditions to cover all cases. For example:\n\n```\nif self.mask is None and operand.mask is None:\n    return None\nelif self.mask is None:\n    return deepcopy(operand.mask)\nelif operand.mask is None:\n    return deepcopy(self.mask)\nelse:\n    return handle_mask(self.mask, operand.mask, **kwds)\n```\n\nBut note we also have to consider handle_mask is None case. And operand could be None, which means operand.mask is None (since if operand is None, it\'s like having no mask). So we need to handle operand is None as operand.mask being None. So we could unify.\n\nThe current code\'s conditions are messy. The fix likely involves changing lines 516-527.\n\nGiven the problem description, the locations to edit are in `astropy/nddata/mixins/ndarithmetic.py`, within the `_arithmetic_mask` method, specifically the conditional block from lines 516 to 527. The exact line numbers: 516-527 (or maybe individual lines 516, 520, 522, 523, 524, 526, 527). The function name is `NDArithmeticMixin._arithmetic_mask` (but class name can be inferred). According to the file snippet, class name is likely `NDArithmeticMixin` (it appears from the `NDArithmeticMixin` in docstring? Actually the docstring says `see :meth:`NDArithmeticMixin._arithmetic`` so the class is `NDArithmeticMixin`. So the location:\n\n- file: `astropy/nddata/mixins/ndarithmetic.py`\n- class: `NDArithmeticMixin`\n- method: `_arithmetic_mask`\n- lines: 516-527 (or maybe just the condition blocks). We should provide exact lines to change. However, the instructions say: "provide a set of locations that need to be edited" and examples include line numbers, class names, function/method names. I think specifying the method and lines is fine.\n\nWe can indicate:\n\n```\nfull_path/astropy/nddata/mixins/ndarithmetic.py\nclass: NDArithmeticMixin\nfunction: _arithmetic_mask\nline: 516\nline: 517\nline: 518\nline: 519\nline: 520\nline: 521\nline: 522\nline: 523\nline: 524\nline: 525\nline: 526\nline: 527\n```\n\nBut that\'s many lines. Alternatively, we can point to the function and note that the whole condition block needs to be rewritten. The user asked for "locations can be specified as class names, function or method names, or exact line numbers that require modification." So I can provide the method and maybe the line range. I\'ll output something like:\n\n```\nastropy/nddata/mixins/ndarithmetic.py\nclass: NDArithmeticMixin\nfunction: _arithmetic_mask\nline: 516-527\n```\n\nThat should be acceptable.\n\nTo be safe, I\'ll list individual lines: 516, 517, 518, 519, 520, 521, 522, 523, 524, 525, 526, 527. But I\'ll stick to concise output. The examples show they might provide multiple lines like `line: 24` and `line: 156` separately. I\'ll provide range or the specific lines.\n\nI think the answer is: `astropy/nddata/mixins/ndarithmetic.py`, `_arithmetic_mask` method, lines 516-527.\n\nAdditionally, there might be a need to modify the `_arithmetic` method calling `_arithmetic_mask`? But no, the bug is solely in `_arithmetic_mask`. So that\'s it.\n\nLet\'s craft the final answer.'))], created=1782444557, model='deepseek-v4-pro', object='chat.completion', moderation=None, service_tier=None, system_fingerprint='fp_9954b31ca7_prod0820_fp8_kvcache_20260402', usage=CompletionUsage(completion_tokens=2269, prompt_tokens=1669, total_tokens=3938, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=2180, rejected_prediction_tokens=None), prompt_tokens_details=PromptTokensDetails(audio_tokens=None, cached_tokens=1664), prompt_cache_hit_tokens=1664, prompt_cache_miss_tokens=5))
+2026-06-26 11:29:54,131 - INFO - ==== raw output ====
+2026-06-26 11:29:54,131 - INFO - astropy/nddata/mixins/ndarithmetic.py
+class: NDArithmeticMixin
+function: _arithmetic_mask
+line: 516
+line: 517
+line: 518
+line: 519
+line: 520
+line: 521
+line: 522
+line: 523
+line: 524
+line: 525
+line: 526
+line: 527
+2026-06-26 11:29:54,131 - INFO - ================================================================================
+2026-06-26 11:29:54,131 - INFO - ==== extracted locs ====
+2026-06-26 11:29:54,131 - INFO - astropy/nddata/mixins/ndarithmetic.py
+2026-06-26 11:29:54,131 - INFO - astropy/nddata/nddata.py
+2026-06-26 11:29:54,131 - INFO - ================================================================================
+2026-06-26 11:29:54,131 - INFO - ==== Input coarse_locs
+2026-06-26 11:29:54,131 - INFO - 
+### astropy/nddata/mixins/ndarithmetic.py
+function: NDArithmeticMixin._arithmetic_mask
+### astropy/nddata/nddata.py
+
+
+2026-06-26 11:29:54,328 - INFO - No valid edit locations found ... retrying with higher temperature ...
+2026-06-26 11:29:54,676 - INFO - prompting with message:
+
+Please review the following GitHub problem description and relevant files, and provide a set of locations that need to be edited to fix the issue.
+The locations can be specified as class names, function or method names, or exact line numbers that require modification.
+
+### GitHub Problem Description ###
+In v5.3, NDDataRef mask propagation fails when one of the operand does not have a mask
+### Description
+
+This applies to v5.3. 
+
+It looks like when one of the operand does not have a mask, the mask propagation when doing arithmetic, in particular with `handle_mask=np.bitwise_or` fails.  This is not a problem in v5.2.
+
+I don't know enough about how all that works, but it seems from the error that the operand without a mask is set as a mask of None's and then the bitwise_or tries to operate on an integer and a None and fails.
+
+### Expected behavior
+
+When one of the operand does not have mask, the mask that exists should just be copied over to the output.  Or whatever was done in that situation in v5.2 where there's no problem.
+
+### How to Reproduce
+
+This is with v5.3.   With v5.2, there are no errors.
+
+```
+>>> import numpy as np
+>>> from astropy.nddata import NDDataRef
+
+>>> array = np.array([[0, 1, 0], [1, 0, 1], [0, 1, 0]])
+>>> mask = np.array([[0, 1, 64], [8, 0, 1], [2, 1, 0]])
+
+>>> nref_nomask = NDDataRef(array)
+>>> nref_mask = NDDataRef(array, mask=mask)
+
+# multiply no mask by constant (no mask * no mask)
+>>> nref_nomask.multiply(1., handle_mask=np.bitwise_or).mask   # returns nothing, no mask,  OK
+
+# multiply no mask by itself (no mask * no mask)
+>>> nref_nomask.multiply(nref_nomask, handle_mask=np.bitwise_or).mask # return nothing, no mask, OK
+
+# multiply mask by constant (mask * no mask)
+>>> nref_mask.multiply(1., handle_mask=np.bitwise_or).mask
+...
+TypeError: unsupported operand type(s) for |: 'int' and 'NoneType'
+
+# multiply mask by itself (mask * mask)
+>>> nref_mask.multiply(nref_mask, handle_mask=np.bitwise_or).mask
+array([[ 0,  1, 64],
+       [ 8,  0,  1],
+       [ 2,  1,  0]])
+
+# multiply mask by no mask (mask * no mask)
+>>> nref_mask.multiply(nref_nomask, handle_mask=np.bitwise_or).mask
+...
+TypeError: unsupported operand type(s) for |: 'int' and 'NoneType'
+```
+
+
+### Versions
+
+>>> import sys; print("Python", sys.version)
+Python 3.10.11 | packaged by conda-forge | (main, May 10 2023, 19:07:22) [Clang 14.0.6 ]
+>>> import astropy; print("astropy", astropy.__version__)
+astropy 5.3
+>>> import numpy; print("Numpy", numpy.__version__)
+Numpy 1.24.3
+>>> import erfa; print("pyerfa", erfa.__version__)
+pyerfa 2.0.0.3
+>>> import scipy; print("Scipy", scipy.__version__)
+Scipy 1.10.1
+>>> import matplotlib; print("Matplotlib", matplotlib.__version__)
+Matplotlib 3.7.1
+
+
+
+###
+### astropy/nddata/mixins/ndarithmetic.py
+...
+475|
+476|        else:
+477|            # Both have uncertainties so just propagate.
+478|
+479|            # only supply the axis kwarg if one has been specified for a collapsing operation
+480|            axis_kwarg = dict(axis=kwds["axis"]) if "axis" in kwds else dict()
+481|            return self.uncertainty.propagate(
+482|                operation, operand, result, correlation, **axis_kwarg
+483|            )
+484|
+485|    def _arithmetic_mask(self, operation, operand, handle_mask, axis=None, **kwds):
+486|        """
+487|        Calculate the resulting mask.
+488|
+489|        This is implemented as the piecewise ``or`` operation if both have a
+490|        mask.
+491|
+492|        Parameters
+493|        ----------
+494|        operation : callable
+495|            see :meth:`NDArithmeticMixin._arithmetic` parameter description.
+496|            By default, the ``operation`` will be ignored.
+497|
+498|        operand : `NDData`-like instance
+499|            The second operand wrapped in an instance of the same class as
+500|            self.
+501|
+502|        handle_mask : callable
+503|            see :meth:`NDArithmeticMixin.add`
+504|
+505|        kwds :
+506|            Additional parameters given to ``handle_mask``.
+507|
+508|        Returns
+509|        -------
+510|        result_mask : any type
+511|            If only one mask was present this mask is returned.
+512|            If neither had a mask ``None`` is returned. Otherwise
+513|            ``handle_mask`` must create (and copy) the returned mask.
+514|        """
+515|        # If only one mask is present we need not bother about any type checks
+516|        if (
+517|            self.mask is None and operand is not None and operand.mask is None
+518|        ) or handle_mask is None:
+519|            return None
+520|        elif self.mask is None and operand is not None:
+521|            # Make a copy so there is no reference in the result.
+522|            return deepcopy(operand.mask)
+523|        elif operand is None:
+524|            return deepcopy(self.mask)
+525|        else:
+526|            # Now lets calculate the resulting mask (operation enforces copy)
+527|            return handle_mask(self.mask, operand.mask, **kwds)
+528|
+529|    def _arithmetic_wcs(self, operation, operand, compare_wcs, **kwds):
+530|        """
+531|        Calculate the resulting wcs.
+532|
+533|        There is actually no calculation involved but it is a good place to
+534|        compare wcs information of both operands. This is currently not working
+535|        properly with `~astropy.wcs.WCS` (which is the suggested class for
+536|        storing as wcs property) but it will not break it neither.
+537|
+...
+
+
+
+
+###
+
+Please provide the class name, function or method name, or the exact line numbers that need to be edited.
+### Examples:
+```
+full_path1/file1.py
+line: 10
+class: MyClass1
+line: 51
+
+full_path2/file2.py
+function: MyClass2.my_method
+line: 12
+
+full_path3/file3.py
+function: my_function
+line: 24
+line: 156
+```
+
+Return just the location(s)
+
+2026-06-26 11:29:54,677 - INFO - ================================================================================
+2026-06-26 11:29:54,677 - INFO - Initializing a decoder model: deepseek-v4-pro ...
+2026-06-26 11:29:54,747 - INFO - Creating API request
+2026-06-26 11:30:39,066 - INFO - API response ChatCompletion(id='7d37fb6e-1af1-40c3-984e-46b7b3498863', choices=[Choice(finish_reason='stop', index=0, logprobs=None, message=ChatCompletionMessage(content='```json\nastropy/nddata/mixins/ndarithmetic.py\nfunction: NDArithmeticMixin._arithmetic_mask\nline: 523\nline: 525\n```', refusal=None, role='assistant', annotations=None, audio=None, function_call=None, tool_calls=None, reasoning_content='We are asked to review the problem description and relevant files, and provide a set of locations that need to be edited to fix the issue. The relevant file is `astropy/nddata/mixins/ndarithmetic.py` and specifically the method `_arithmetic_mask`. The issue is that when one operand has a mask and the other doesn\'t, the mask propagation fails with a TypeError when using `handle_mask=np.bitwise_or`. The problem is that the existing code in `_arithmetic_mask` handles the case where one mask is None by returning a deepcopy of the other operand\'s mask. However, if `handle_mask` is not None and one mask is None and the other is not, it goes to the else branch and tries to call `handle_mask(self.mask, operand.mask, **kwds)`, where one is None and the other is an array. The condition on line 516-518 checks for `handle_mask is None` along with both masks being None to return None. But it doesn\'t handle the case where handle_mask is not None and one mask is None. Actually, the logic is:\n```python\nif (self.mask is None and operand is not None and operand.mask is None) or handle_mask is None:\n    return None\nelif self.mask is None and operand is not None:\n    return deepcopy(operand.mask)\nelif operand is None:\n    return deepcopy(self.mask)\nelse:\n    return handle_mask(self.mask, operand.mask, **kwds)\n```\nIt appears the condition `self.mask is None and operand is not None` is meant to cover the case where self has no mask but operand has a mask. However, the operand could be a scalar (like 1.) and then operand is not an NDData instance, so `operand.mask` would not exist. Wait, in the description, `nref_mask.multiply(1., handle_mask=np.bitwise_or)` fails. In multiply, the second operand is a number, which gets wrapped? Let\'s see how `_arithmetic` calls `_arithmetic_mask`. In the method, `operand` is the second operand after wrapping? We need to examine the code more.\n\nFrom the error: when doing `nref_mask.multiply(1., handle_mask=np.bitwise_or)`, the internal call to `_arithmetic_mask` presumably receives `operand` as something that doesn\'t have a mask (maybe None mask). But the condition `self.mask is None and operand is not None` checks if self.mask is None, but here self is `nref_mask` which has a mask, so that branch is skipped. The next condition `elif operand is None` checks if operand is None (the object, not its mask). If operand is the scalar 1., it\'s not None, so that branch skipped. Then it falls into else, where it calls `handle_mask(self.mask, operand.mask, **kwds)`. But `operand.mask` is likely None (if the scalar wrapped object has no mask), leading to TypeError when bitwise_or tries to operate on int and None.\n\nSo the bug is that when self has a mask but operand does not (operand is not None but its mask is None), the code does not handle it and tries to combine masks. The fix would be to add checks for when one operand has a mask and the other doesn\'t. Specifically, we need to handle cases:\n- self.mask is not None, operand.mask is None -> return deepcopy(self.mask) (if handle_mask is not None, but we should just copy the existing mask)\n- self.mask is None, operand.mask is not None -> handled by existing `elif self.mask is None and operand is not None`, but that condition only checks if self.mask is None and operand is not None (the object). But what if operand is a scalar? Then operand might not have a `mask` attribute? Actually, in NDDataRef arithmetic, scalars are converted to NDDataRef-like objects? Let\'s check: In `_arithmetic`, before calling `_arithmetic_mask`, there is code that prepares operand. Look at the lines around 475, but we only have the tail. Better check the full `_arithmetic` method. The problem description only gave the file\'s part with `_arithmetic_mask`. However, we can infer.\n\nGiven the error occurs in `_arithmetic_mask` when calling `handle_mask`, the fix should be in that method. The conditions need to correctly account for cases where either operand\'s mask is None. The existing conditions are:\n- If both masks are None OR handle_mask is None: return None.\n- Else if self.mask is None and operand is not None: return deepcopy(operand.mask). This covers self has no mask but operand has mask.\n- Else if operand is None: return deepcopy(self.mask). This covers operand is None (probably the object itself, not mask). But what if operand is not None but its mask is None? That case falls through to else and causes error.\n\nWe need to add a condition: if self.mask is not None and (operand is None or operand.mask is None): return deepcopy(self.mask). And similarly, if operand is not None and operand.mask is not None but self.mask is None: already covered? The existing condition `elif self.mask is None and operand is not None` does not check that operand.mask is not None. If self.mask is None and operand is not None but operand.mask is also None, then both are None, which would have been caught by the first condition? The first condition: `if (self.mask is None and operand is not None and operand.mask is None) or handle_mask is None: return None`. So that checks: self.mask is None AND operand is not None AND operand.mask is None => return None. That\'s good. Then `elif self.mask is None and operand is not None:` If we got there, it implies operand.mask is NOT None (because otherwise it would have matched the first condition). So that branch correctly returns deepcopy(operand.mask) when self has no mask and operand has a mask. Next, `elif operand is None:` returns deepcopy(self.mask) assuming self has a mask. But what if operand is None and self has no mask? The first condition handles handle_mask is None, but if handle_mask is not None and both masks are None, the condition `(self.mask is None and operand is not None and operand.mask is None)` requires operand is not None, so operand is None and self.mask is None would not match that, and then `elif operand is None:` would return deepcopy(self.mask) which would be None? That\'s okay. The problematic case is: self has a mask, operand is not None but operand.mask is None. Then: first condition fails (self.mask is not None), second condition fails (self.mask is not None), third condition fails (operand is not None), so it goes to else and calls handle_mask with a None. So we need to add a condition before else to handle that case. e.g., `elif operand is not None and operand.mask is None:` (and self.mask is not None implicitly) return deepcopy(self.mask). Similarly, if operand is None, we already copy self.mask, but if self.mask is None then it returns None, which is fine.\n\nAlternatively, we could refactor the logic to be clearer: check if both masks exist, else if only one exists, return a copy of that mask, else return None, regardless of handle_mask. But the current code\'s logic with handle_mask is: if handle_mask is None, always return None. That seems odd: if handle_mask is None, the resulting mask should be None? That might be intended, but the issue is that when handle_mask is not None and one mask is missing, we still want to just copy the mask, not apply handle_mask. So we need to ensure that when only one mask exists, we do not call handle_mask, but just copy that mask. The fix is to add an `elif` for the case where self.mask is not None and operand.mask is None, returning deepcopy(self.mask). Also need to handle when self.mask is None and operand.mask is not None is already handled. So the change should be in the `_arithmetic_mask` method, adding a condition.\n\nWe should verify the exact lines. The file path is `astropy/nddata/mixins/ndarithmetic.py`. The method is `_arithmetic_mask` starting at line 485. The specific lines to edit are the condition block from line 516 to 527. We need to add an extra `elif` check for the case where self.mask is not None and operand is not None and operand.mask is None. So lines between 523 and 526. Currently:\n\n```python\n        elif operand is None:\n            return deepcopy(self.mask)\n        else:\n            # Now lets calculate the resulting mask (operation enforces copy)\n            return handle_mask(self.mask, operand.mask, **kwds)\n```\n\nWe need to insert:\n\n```python\n        elif operand is not None and operand.mask is None:\n            return deepcopy(self.mask)\n```\n\nbefore the else. Also consider if operand is None and self.mask is not None, the existing `elif operand is None:` handles it. If operand is None and self.mask is None, that returns None, okay. So the fix is to add that condition. The line numbers would be after line 523 (the elif operand is None) and before line 525 (else). So we need to edit around there. The locations: file: `astropy/nddata/mixins/ndarithmetic.py`, method: `_arithmetic_mask`, line: probably 523-525 area.\n\nWe\'ll output the location as:\nfile: astropy/nddata/mixins/ndarithmetic.py\nfunction: NDArithmeticMixin._arithmetic_mask\nline: 523 (or specify the block)\n\nBut the user wants "class name, function or method name, or exact line numbers". We can provide:\n\n```\nastropy/nddata/mixins/ndarithmetic.py\nfunction: _arithmetic_mask\nline: 525\n```\n\nBut we might need to be more precise: The block to modify is lines 516-527. The fix is to add an elif after line 523. So we can say line 525 (the else) should become the new condition. Or we can provide the line number where the change should be inserted. Given the style, many examples give a class name and line numbers, not just function. We\'ll provide both function name and line number(s). Since the issue is about this method, we\'ll state:\n\n```\nastropy/nddata/mixins/ndarithmetic.py\nfunction: NDArithmeticMixin._arithmetic_mask\nline: 516\nline: 523\nline: 525\n```\n\nBut that might be too vague. The instructions: "The locations can be specified as class names, function or method names, or exact line numbers that require modification." So I\'ll provide the method and the line number where the logic needs to be added. I\'ll say:\n\nfile: astropy/nddata/mixins/ndarithmetic.py\nmethod: NDArithmeticMixin._arithmetic_mask\nline: 523 (insert after this line)\n\nBut maybe better: just list the line that needs to be changed (525). However, the change is to replace the else with an elif and then an else. So I\'ll specify that the block starting at line 525 needs modification, or that line 525 should be changed to an elif and new else. I\'ll say:\n\n```\nastropy/nddata/mixins/ndarithmetic.py\nfunction: _arithmetic_mask\nline: 525\n```\n\nBut I\'ll also mention line 523 for context? The requirement: "Return just the location(s)". I\'ll provide:\n\n```\nastropy/nddata/mixins/ndarithmetic.py\nfunction: NDArithmeticMixin._arithmetic_mask\nline: 523\nline: 525\n```\n\nI think that\'s acceptable. I\'ll output that.'))], created=1782444595, model='deepseek-v4-pro', object='chat.completion', moderation=None, service_tier=None, system_fingerprint='fp_9954b31ca7_prod0820_fp8_kvcache_20260402', usage=CompletionUsage(completion_tokens=2645, prompt_tokens=1669, total_tokens=4314, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=2604, rejected_prediction_tokens=None), prompt_tokens_details=PromptTokensDetails(audio_tokens=None, cached_tokens=1664), prompt_cache_hit_tokens=1664, prompt_cache_miss_tokens=5))
+2026-06-26 11:30:39,066 - INFO - ==== raw output ====
+2026-06-26 11:30:39,066 - INFO - ```json
+astropy/nddata/mixins/ndarithmetic.py
+function: NDArithmeticMixin._arithmetic_mask
+line: 523
+line: 525
+```
+2026-06-26 11:30:39,066 - INFO - ================================================================================
+2026-06-26 11:30:39,066 - INFO - ==== extracted locs ====
+2026-06-26 11:30:39,066 - INFO - astropy/nddata/mixins/ndarithmetic.py
+2026-06-26 11:30:39,066 - INFO - astropy/nddata/nddata.py
+2026-06-26 11:30:39,066 - INFO - ================================================================================
+2026-06-26 11:30:39,066 - INFO - ==== Input coarse_locs
+2026-06-26 11:30:39,066 - INFO - 
+### astropy/nddata/mixins/ndarithmetic.py
+function: NDArithmeticMixin._arithmetic_mask
+### astropy/nddata/nddata.py
+
+

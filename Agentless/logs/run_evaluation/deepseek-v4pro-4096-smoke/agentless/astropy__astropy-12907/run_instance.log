@@ -1,0 +1,71 @@
+2026-06-26 10:30:01,977 - INFO - Environment image sweb.env.x86_64.428468730904ff6b4232aa:latest found for astropy__astropy-12907
+Building instance image sweb.eval.x86_64.astropy__astropy-12907:latest for astropy__astropy-12907
+2026-06-26 10:31:36,917 - INFO - Creating container for astropy__astropy-12907...
+2026-06-26 10:31:37,007 - INFO - Container for astropy__astropy-12907 created: c70b4de1e7d328d6f2601c1984e29ff173a22e95b31dea0689dd7816a5fe20ed
+2026-06-26 10:31:37,209 - INFO - Container for astropy__astropy-12907 started: c70b4de1e7d328d6f2601c1984e29ff173a22e95b31dea0689dd7816a5fe20ed
+2026-06-26 10:31:37,209 - INFO - Intermediate patch for astropy__astropy-12907 written to logs/run_evaluation/deepseek-v4pro-4096-smoke/agentless/astropy__astropy-12907/patch.diff, now applying to container...
+2026-06-26 10:31:37,497 - INFO - Failed to apply patch to container, trying again...
+2026-06-26 10:31:37,566 - INFO - >>>>> Applied Patch:
+patching file astropy/modeling/separable.py
+
+2026-06-26 10:31:37,942 - INFO - Git diff before:
+diff --git a/astropy/modeling/separable.py b/astropy/modeling/separable.py
+index a308e27297..45bea36085 100644
+--- a/astropy/modeling/separable.py
++++ b/astropy/modeling/separable.py
+@@ -242,7 +242,7 @@ def _cstack(left, right):
+         cright = _coord_matrix(right, 'right', noutp)
+     else:
+         cright = np.zeros((noutp, right.shape[1]))
+-        cright[-right.shape[0]:, -right.shape[1]:] = 1
++        cright[-right.shape[0]:, -right.shape[1]:] = right
+ 
+     return np.hstack([cleft, cright])
+ 
+diff --git a/pyproject.toml b/pyproject.toml
+index 3364d30740..02dddbe713 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -1,5 +1,5 @@
+ [build-system]
+-requires = ["setuptools",
++requires = ["setuptools==68.0.0",
+             "setuptools_scm>=6.2",
+             "wheel",
+             "cython==0.29.22",
+2026-06-26 10:31:37,942 - INFO - Eval script for astropy__astropy-12907 written to logs/run_evaluation/deepseek-v4pro-4096-smoke/agentless/astropy__astropy-12907/eval.sh; copying to container...
+2026-06-26 10:32:33,840 - INFO - Test runtime: 55.76 seconds
+2026-06-26 10:32:33,842 - INFO - Test output for astropy__astropy-12907 written to logs/run_evaluation/deepseek-v4pro-4096-smoke/agentless/astropy__astropy-12907/test_output.txt
+2026-06-26 10:32:33,915 - INFO - Git diff after:
+diff --git a/astropy/modeling/separable.py b/astropy/modeling/separable.py
+index a308e27297..45bea36085 100644
+--- a/astropy/modeling/separable.py
++++ b/astropy/modeling/separable.py
+@@ -242,7 +242,7 @@ def _cstack(left, right):
+         cright = _coord_matrix(right, 'right', noutp)
+     else:
+         cright = np.zeros((noutp, right.shape[1]))
+-        cright[-right.shape[0]:, -right.shape[1]:] = 1
++        cright[-right.shape[0]:, -right.shape[1]:] = right
+ 
+     return np.hstack([cleft, cright])
+ 
+diff --git a/pyproject.toml b/pyproject.toml
+index 3364d30740..02dddbe713 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -1,5 +1,5 @@
+ [build-system]
+-requires = ["setuptools",
++requires = ["setuptools==68.0.0",
+             "setuptools_scm>=6.2",
+             "wheel",
+             "cython==0.29.22",
+2026-06-26 10:32:33,915 - INFO - Grading answer for astropy__astropy-12907...
+2026-06-26 10:32:33,939 - INFO - report: {'astropy__astropy-12907': {'patch_is_None': False, 'patch_exists': True, 'patch_successfully_applied': True, 'resolved': True, 'tests_status': {'FAIL_TO_PASS': {'success': ['astropy/modeling/tests/test_separable.py::test_separable[compound_model6-result6]', 'astropy/modeling/tests/test_separable.py::test_separable[compound_model9-result9]'], 'failure': []}, 'PASS_TO_PASS': {'success': ['astropy/modeling/tests/test_separable.py::test_coord_matrix', 'astropy/modeling/tests/test_separable.py::test_cdot', 'astropy/modeling/tests/test_separable.py::test_cstack', 'astropy/modeling/tests/test_separable.py::test_arith_oper', 'astropy/modeling/tests/test_separable.py::test_separable[compound_model0-result0]', 'astropy/modeling/tests/test_separable.py::test_separable[compound_model1-result1]', 'astropy/modeling/tests/test_separable.py::test_separable[compound_model2-result2]', 'astropy/modeling/tests/test_separable.py::test_separable[compound_model3-result3]', 'astropy/modeling/tests/test_separable.py::test_separable[compound_model4-result4]', 'astropy/modeling/tests/test_separable.py::test_separable[compound_model5-result5]', 'astropy/modeling/tests/test_separable.py::test_separable[compound_model7-result7]', 'astropy/modeling/tests/test_separable.py::test_separable[compound_model8-result8]', 'astropy/modeling/tests/test_separable.py::test_custom_model_separable'], 'failure': []}, 'FAIL_TO_FAIL': {'success': [], 'failure': []}, 'PASS_TO_FAIL': {'success': [], 'failure': []}}}}
+Result for astropy__astropy-12907: resolved: True
+2026-06-26 10:32:33,940 - INFO - Attempting to stop container sweb.eval.astropy__astropy-12907.deepseek-v4pro-4096-smoke...
+2026-06-26 10:32:49,214 - INFO - Attempting to remove container sweb.eval.astropy__astropy-12907.deepseek-v4pro-4096-smoke...
+2026-06-26 10:32:49,248 - INFO - Container sweb.eval.astropy__astropy-12907.deepseek-v4pro-4096-smoke removed.
+2026-06-26 10:32:49,248 - INFO - Attempting to remove image sweb.eval.x86_64.astropy__astropy-12907:latest...
+2026-06-26 10:32:49,417 - INFO - Image sweb.eval.x86_64.astropy__astropy-12907:latest removed.

@@ -1,0 +1,717 @@
+2026-06-26 11:27:02,895 - INFO - Processing bug astropy__astropy-14995
+2026-06-26 11:27:34,227 - INFO - ================ localize astropy__astropy-14995 ================
+2026-06-26 11:27:34,339 - INFO - prompting with message:
+2026-06-26 11:27:34,339 - INFO - 
+
+Please look through the following GitHub Problem Description and the Skeleton of Relevant Files.
+Identify all locations that need inspection or editing to fix the problem, including directly related areas as well as any potentially related global variables, functions, and classes.
+For each location you provide, either give the name of the class, the name of a method in a class, the name of a function, or the name of a global variable.
+
+### GitHub Problem Description ###
+In v5.3, NDDataRef mask propagation fails when one of the operand does not have a mask
+### Description
+
+This applies to v5.3. 
+
+It looks like when one of the operand does not have a mask, the mask propagation when doing arithmetic, in particular with `handle_mask=np.bitwise_or` fails.  This is not a problem in v5.2.
+
+I don't know enough about how all that works, but it seems from the error that the operand without a mask is set as a mask of None's and then the bitwise_or tries to operate on an integer and a None and fails.
+
+### Expected behavior
+
+When one of the operand does not have mask, the mask that exists should just be copied over to the output.  Or whatever was done in that situation in v5.2 where there's no problem.
+
+### How to Reproduce
+
+This is with v5.3.   With v5.2, there are no errors.
+
+```
+>>> import numpy as np
+>>> from astropy.nddata import NDDataRef
+
+>>> array = np.array([[0, 1, 0], [1, 0, 1], [0, 1, 0]])
+>>> mask = np.array([[0, 1, 64], [8, 0, 1], [2, 1, 0]])
+
+>>> nref_nomask = NDDataRef(array)
+>>> nref_mask = NDDataRef(array, mask=mask)
+
+# multiply no mask by constant (no mask * no mask)
+>>> nref_nomask.multiply(1., handle_mask=np.bitwise_or).mask   # returns nothing, no mask,  OK
+
+# multiply no mask by itself (no mask * no mask)
+>>> nref_nomask.multiply(nref_nomask, handle_mask=np.bitwise_or).mask # return nothing, no mask, OK
+
+# multiply mask by constant (mask * no mask)
+>>> nref_mask.multiply(1., handle_mask=np.bitwise_or).mask
+...
+TypeError: unsupported operand type(s) for |: 'int' and 'NoneType'
+
+# multiply mask by itself (mask * mask)
+>>> nref_mask.multiply(nref_mask, handle_mask=np.bitwise_or).mask
+array([[ 0,  1, 64],
+       [ 8,  0,  1],
+       [ 2,  1,  0]])
+
+# multiply mask by no mask (mask * no mask)
+>>> nref_mask.multiply(nref_nomask, handle_mask=np.bitwise_or).mask
+...
+TypeError: unsupported operand type(s) for |: 'int' and 'NoneType'
+```
+
+
+### Versions
+
+>>> import sys; print("Python", sys.version)
+Python 3.10.11 | packaged by conda-forge | (main, May 10 2023, 19:07:22) [Clang 14.0.6 ]
+>>> import astropy; print("astropy", astropy.__version__)
+astropy 5.3
+>>> import numpy; print("Numpy", numpy.__version__)
+Numpy 1.24.3
+>>> import erfa; print("pyerfa", erfa.__version__)
+pyerfa 2.0.0.3
+>>> import scipy; print("Scipy", scipy.__version__)
+Scipy 1.10.1
+>>> import matplotlib; print("Matplotlib", matplotlib.__version__)
+Matplotlib 3.7.1
+
+
+
+### Skeleton of Relevant Files ###
+
+### File: astropy/nddata/mixins/ndarithmetic.py ###
+```python
+# Licensed under a 3-clause BSD style license - see LICENSE.rst
+# This module implements the Arithmetic mixin to the NDData class.
+
+
+__all__ = ["NDArithmeticMixin"]
+
+# Global so it doesn't pollute the class dict unnecessarily:
+
+# Docstring templates for add, subtract, multiply, divide methods.
+_arit_doc = """
+    Performs {name} by evaluating ``self`` {op} ``operand``.
+
+    Parameters
+    ----------
+    operand, operand2 : `NDData`-like instance
+        If ``operand2`` is ``None`` or not given it will perform the operation
+        ``self`` {op} ``operand``.
+        If ``operand2`` is given it will perform ``operand`` {op} ``operand2``.
+        If the method was called on a class rather than on the instance
+        ``operand2`` must be given.
+
+    propagate_uncertainties : `bool` or ``None``, optional
+        If ``None`` the result will have no uncertainty. If ``False`` the
+        result will have a copied version of the first operand that has an
+        uncertainty. If ``True`` the result will have a correctly propagated
+        uncertainty from the uncertainties of the operands but this assumes
+        that the uncertainties are `NDUncertainty`-like. Default is ``True``.
+
+        .. versionchanged:: 1.2
+            This parameter must be given as keyword-parameter. Using it as
+            positional parameter is deprecated.
+            ``None`` was added as valid parameter value.
+
+    handle_mask : callable, ``'first_found'`` or ``None``, optional
+        If ``None`` the result will have no mask. If ``'first_found'`` the
+        result will have a copied version of the first operand that has a
+        mask). If it is a callable then the specified callable must
+        create the results ``mask`` and if necessary provide a copy.
+        Default is `numpy.logical_or`.
+
+        .. versionadded:: 1.2
+
+    handle_meta : callable, ``'first_found'`` or ``None``, optional
+        If ``None`` the result will have no meta. If ``'first_found'`` the
+        result will have a copied version of the first operand that has a
+        (not empty) meta. If it is a callable then the specified callable must
+        create the results ``meta`` and if necessary provide a copy.
+        Default is ``None``.
+
+        .. versionadded:: 1.2
+
+    compare_wcs : callable, ``'first_found'`` or ``None``, optional
+        If ``None`` the result will have no wcs and no comparison between
+        the wcs of the operands is made. If ``'first_found'`` the
+        result will have a copied version of the first operand that has a
+        wcs. If it is a callable then the specified callable must
+        compare the ``wcs``. The resulting ``wcs`` will be like if ``False``
+        was given otherwise it raises a ``ValueError`` if the comparison was
+        not successful. Default is ``'first_found'``.
+
+        .. versionadded:: 1.2
+
+    uncertainty_correlation : number or `~numpy.ndarray`, optional
+        The correlation between the two operands is used for correct error
+        propagation for correlated data as given in:
+        https://en.wikipedia.org/wiki/Propagation_of_uncertainty#Example_formulas
+        Default is 0.
+
+        .. versionadded:: 1.2
+
+
+    kwargs :
+        Any other parameter that should be passed to the callables used.
+
+    Returns
+    -------
+    result : `~astropy.nddata.NDData`-like
+        The resulting dataset
+
+    Notes
+    -----
+    If a ``callable`` is used for ``mask``, ``wcs`` or ``meta`` the
+    callable must accept the corresponding attributes as first two
+    parameters. If the callable also needs additional parameters these can be
+    defined as ``kwargs`` and must start with ``"wcs_"`` (for wcs callable) or
+    ``"meta_"`` (for meta callable). This startstring is removed before the
+    callable is called.
+
+    ``"first_found"`` can also be abbreviated with ``"ff"``.
+    """
+
+
+class NDArithmeticMixin:
+
+    def _arithmetic(
+        self,
+        operation,
+        operand,
+        propagate_uncertainties=True,
+        handle_mask=np.logical_or,
+        handle_meta=None,
+        uncertainty_correlation=0,
+        compare_wcs="first_found",
+        operation_ignores_mask=False,
+        axis=None,
+        **kwds,
+    ):
+...
+
+    def _arithmetic_data(self, operation, operand, **kwds):
+...
+
+    def _arithmetic_uncertainty(self, operation, operand, result, correlation, **kwds):
+...
+
+    def _arithmetic_mask(self, operation, operand, handle_mask, axis=None, **kwds):
+...
+
+    def _arithmetic_wcs(self, operation, operand, compare_wcs, **kwds):
+...
+
+    def _arithmetic_meta(self, operation, operand, handle_meta, **kwds):
+...
+
+    @sharedmethod
+    @format_doc(_arit_doc, name="addition", op="+")
+    def add(self, operand, operand2=None, **kwargs):
+...
+
+    @sharedmethod
+    @format_doc(_arit_doc, name="subtraction", op="-")
+    def subtract(self, operand, operand2=None, **kwargs):
+...
+
+    @sharedmethod
+    @format_doc(_arit_doc, name="multiplication", op="*")
+    def multiply(self, operand, operand2=None, **kwargs):
+...
+
+    @sharedmethod
+    @format_doc(_arit_doc, name="division", op="/")
+    def divide(self, operand, operand2=None, **kwargs):
+...
+
+    @sharedmethod
+    def sum(self, **kwargs):
+...
+
+    @sharedmethod
+    def mean(self, **kwargs):
+...
+
+    @sharedmethod
+    def min(self, **kwargs):
+...
+
+    @sharedmethod
+    def max(self, **kwargs):
+...
+
+    @sharedmethod
+    def _prepare_then_do_arithmetic(
+        self_or_cls, operation, operand=None, operand2=None, **kwargs
+    ):
+...
+```
+
+### File: astropy/nddata/nddata.py ###
+```python
+# Licensed under a 3-clause BSD style license - see LICENSE.rst
+# This module implements the base NDData class.
+
+
+
+__all__ = ["NDData"]
+
+_meta_doc = """`dict`-like : Additional meta information about the dataset."""
+
+
+class NDData(NDDataBase):
+
+    # Instead of a custom property use the MetaData descriptor also used for
+    # Tables. It will check if the meta is dict-like or raise an exception.
+    meta = MetaData(doc=_meta_doc, copy=False)
+
+    def __init__(
+        self,
+        data,
+        uncertainty=None,
+        mask=None,
+        wcs=None,
+        meta=None,
+        unit=None,
+        copy=False,
+        psf=None,
+    ):
+...
+
+    def __str__(self):
+...
+
+    def __repr__(self):
+...
+
+    @property
+    def data(self):
+...
+
+    @property
+    def mask(self):
+...
+
+    @mask.setter
+    def mask(self, value):
+...
+
+    @property
+    def unit(self):
+...
+
+    @property
+    def wcs(self):
+...
+
+    @wcs.setter
+    def wcs(self, wcs):
+...
+
+    @property
+    def psf(self):
+...
+
+    @psf.setter
+    def psf(self, value):
+...
+
+    @property
+    def uncertainty(self):
+...
+
+    @uncertainty.setter
+    def uncertainty(self, value):
+...
+```
+
+
+###
+
+Please provide the complete set of locations as either a class name, a function name, or a variable name.
+Note that if you include a class, you do not need to list its specific methods.
+You can include either the entire class or don't include the class name and instead include specific methods in the class.
+### Examples:
+```
+full_path1/file1.py
+function: my_function_1
+class: MyClass1
+function: MyClass2.my_method
+
+full_path2/file2.py
+variable: my_var
+function: MyClass3.my_method
+
+full_path3/file3.py
+function: my_function_2
+function: my_function_3
+function: MyClass4.my_method_1
+class: MyClass5
+```
+
+Return just the locations.
+
+2026-06-26 11:27:34,504 - INFO - prompting with message:
+
+Please look through the following GitHub Problem Description and the Skeleton of Relevant Files.
+Identify all locations that need inspection or editing to fix the problem, including directly related areas as well as any potentially related global variables, functions, and classes.
+For each location you provide, either give the name of the class, the name of a method in a class, the name of a function, or the name of a global variable.
+
+### GitHub Problem Description ###
+In v5.3, NDDataRef mask propagation fails when one of the operand does not have a mask
+### Description
+
+This applies to v5.3. 
+
+It looks like when one of the operand does not have a mask, the mask propagation when doing arithmetic, in particular with `handle_mask=np.bitwise_or` fails.  This is not a problem in v5.2.
+
+I don't know enough about how all that works, but it seems from the error that the operand without a mask is set as a mask of None's and then the bitwise_or tries to operate on an integer and a None and fails.
+
+### Expected behavior
+
+When one of the operand does not have mask, the mask that exists should just be copied over to the output.  Or whatever was done in that situation in v5.2 where there's no problem.
+
+### How to Reproduce
+
+This is with v5.3.   With v5.2, there are no errors.
+
+```
+>>> import numpy as np
+>>> from astropy.nddata import NDDataRef
+
+>>> array = np.array([[0, 1, 0], [1, 0, 1], [0, 1, 0]])
+>>> mask = np.array([[0, 1, 64], [8, 0, 1], [2, 1, 0]])
+
+>>> nref_nomask = NDDataRef(array)
+>>> nref_mask = NDDataRef(array, mask=mask)
+
+# multiply no mask by constant (no mask * no mask)
+>>> nref_nomask.multiply(1., handle_mask=np.bitwise_or).mask   # returns nothing, no mask,  OK
+
+# multiply no mask by itself (no mask * no mask)
+>>> nref_nomask.multiply(nref_nomask, handle_mask=np.bitwise_or).mask # return nothing, no mask, OK
+
+# multiply mask by constant (mask * no mask)
+>>> nref_mask.multiply(1., handle_mask=np.bitwise_or).mask
+...
+TypeError: unsupported operand type(s) for |: 'int' and 'NoneType'
+
+# multiply mask by itself (mask * mask)
+>>> nref_mask.multiply(nref_mask, handle_mask=np.bitwise_or).mask
+array([[ 0,  1, 64],
+       [ 8,  0,  1],
+       [ 2,  1,  0]])
+
+# multiply mask by no mask (mask * no mask)
+>>> nref_mask.multiply(nref_nomask, handle_mask=np.bitwise_or).mask
+...
+TypeError: unsupported operand type(s) for |: 'int' and 'NoneType'
+```
+
+
+### Versions
+
+>>> import sys; print("Python", sys.version)
+Python 3.10.11 | packaged by conda-forge | (main, May 10 2023, 19:07:22) [Clang 14.0.6 ]
+>>> import astropy; print("astropy", astropy.__version__)
+astropy 5.3
+>>> import numpy; print("Numpy", numpy.__version__)
+Numpy 1.24.3
+>>> import erfa; print("pyerfa", erfa.__version__)
+pyerfa 2.0.0.3
+>>> import scipy; print("Scipy", scipy.__version__)
+Scipy 1.10.1
+>>> import matplotlib; print("Matplotlib", matplotlib.__version__)
+Matplotlib 3.7.1
+
+
+
+### Skeleton of Relevant Files ###
+
+### File: astropy/nddata/mixins/ndarithmetic.py ###
+```python
+# Licensed under a 3-clause BSD style license - see LICENSE.rst
+# This module implements the Arithmetic mixin to the NDData class.
+
+
+__all__ = ["NDArithmeticMixin"]
+
+# Global so it doesn't pollute the class dict unnecessarily:
+
+# Docstring templates for add, subtract, multiply, divide methods.
+_arit_doc = """
+    Performs {name} by evaluating ``self`` {op} ``operand``.
+
+    Parameters
+    ----------
+    operand, operand2 : `NDData`-like instance
+        If ``operand2`` is ``None`` or not given it will perform the operation
+        ``self`` {op} ``operand``.
+        If ``operand2`` is given it will perform ``operand`` {op} ``operand2``.
+        If the method was called on a class rather than on the instance
+        ``operand2`` must be given.
+
+    propagate_uncertainties : `bool` or ``None``, optional
+        If ``None`` the result will have no uncertainty. If ``False`` the
+        result will have a copied version of the first operand that has an
+        uncertainty. If ``True`` the result will have a correctly propagated
+        uncertainty from the uncertainties of the operands but this assumes
+        that the uncertainties are `NDUncertainty`-like. Default is ``True``.
+
+        .. versionchanged:: 1.2
+            This parameter must be given as keyword-parameter. Using it as
+            positional parameter is deprecated.
+            ``None`` was added as valid parameter value.
+
+    handle_mask : callable, ``'first_found'`` or ``None``, optional
+        If ``None`` the result will have no mask. If ``'first_found'`` the
+        result will have a copied version of the first operand that has a
+        mask). If it is a callable then the specified callable must
+        create the results ``mask`` and if necessary provide a copy.
+        Default is `numpy.logical_or`.
+
+        .. versionadded:: 1.2
+
+    handle_meta : callable, ``'first_found'`` or ``None``, optional
+        If ``None`` the result will have no meta. If ``'first_found'`` the
+        result will have a copied version of the first operand that has a
+        (not empty) meta. If it is a callable then the specified callable must
+        create the results ``meta`` and if necessary provide a copy.
+        Default is ``None``.
+
+        .. versionadded:: 1.2
+
+    compare_wcs : callable, ``'first_found'`` or ``None``, optional
+        If ``None`` the result will have no wcs and no comparison between
+        the wcs of the operands is made. If ``'first_found'`` the
+        result will have a copied version of the first operand that has a
+        wcs. If it is a callable then the specified callable must
+        compare the ``wcs``. The resulting ``wcs`` will be like if ``False``
+        was given otherwise it raises a ``ValueError`` if the comparison was
+        not successful. Default is ``'first_found'``.
+
+        .. versionadded:: 1.2
+
+    uncertainty_correlation : number or `~numpy.ndarray`, optional
+        The correlation between the two operands is used for correct error
+        propagation for correlated data as given in:
+        https://en.wikipedia.org/wiki/Propagation_of_uncertainty#Example_formulas
+        Default is 0.
+
+        .. versionadded:: 1.2
+
+
+    kwargs :
+        Any other parameter that should be passed to the callables used.
+
+    Returns
+    -------
+    result : `~astropy.nddata.NDData`-like
+        The resulting dataset
+
+    Notes
+    -----
+    If a ``callable`` is used for ``mask``, ``wcs`` or ``meta`` the
+    callable must accept the corresponding attributes as first two
+    parameters. If the callable also needs additional parameters these can be
+    defined as ``kwargs`` and must start with ``"wcs_"`` (for wcs callable) or
+    ``"meta_"`` (for meta callable). This startstring is removed before the
+    callable is called.
+
+    ``"first_found"`` can also be abbreviated with ``"ff"``.
+    """
+
+
+class NDArithmeticMixin:
+
+    def _arithmetic(
+        self,
+        operation,
+        operand,
+        propagate_uncertainties=True,
+        handle_mask=np.logical_or,
+        handle_meta=None,
+        uncertainty_correlation=0,
+        compare_wcs="first_found",
+        operation_ignores_mask=False,
+        axis=None,
+        **kwds,
+    ):
+...
+
+    def _arithmetic_data(self, operation, operand, **kwds):
+...
+
+    def _arithmetic_uncertainty(self, operation, operand, result, correlation, **kwds):
+...
+
+    def _arithmetic_mask(self, operation, operand, handle_mask, axis=None, **kwds):
+...
+
+    def _arithmetic_wcs(self, operation, operand, compare_wcs, **kwds):
+...
+
+    def _arithmetic_meta(self, operation, operand, handle_meta, **kwds):
+...
+
+    @sharedmethod
+    @format_doc(_arit_doc, name="addition", op="+")
+    def add(self, operand, operand2=None, **kwargs):
+...
+
+    @sharedmethod
+    @format_doc(_arit_doc, name="subtraction", op="-")
+    def subtract(self, operand, operand2=None, **kwargs):
+...
+
+    @sharedmethod
+    @format_doc(_arit_doc, name="multiplication", op="*")
+    def multiply(self, operand, operand2=None, **kwargs):
+...
+
+    @sharedmethod
+    @format_doc(_arit_doc, name="division", op="/")
+    def divide(self, operand, operand2=None, **kwargs):
+...
+
+    @sharedmethod
+    def sum(self, **kwargs):
+...
+
+    @sharedmethod
+    def mean(self, **kwargs):
+...
+
+    @sharedmethod
+    def min(self, **kwargs):
+...
+
+    @sharedmethod
+    def max(self, **kwargs):
+...
+
+    @sharedmethod
+    def _prepare_then_do_arithmetic(
+        self_or_cls, operation, operand=None, operand2=None, **kwargs
+    ):
+...
+```
+
+### File: astropy/nddata/nddata.py ###
+```python
+# Licensed under a 3-clause BSD style license - see LICENSE.rst
+# This module implements the base NDData class.
+
+
+
+__all__ = ["NDData"]
+
+_meta_doc = """`dict`-like : Additional meta information about the dataset."""
+
+
+class NDData(NDDataBase):
+
+    # Instead of a custom property use the MetaData descriptor also used for
+    # Tables. It will check if the meta is dict-like or raise an exception.
+    meta = MetaData(doc=_meta_doc, copy=False)
+
+    def __init__(
+        self,
+        data,
+        uncertainty=None,
+        mask=None,
+        wcs=None,
+        meta=None,
+        unit=None,
+        copy=False,
+        psf=None,
+    ):
+...
+
+    def __str__(self):
+...
+
+    def __repr__(self):
+...
+
+    @property
+    def data(self):
+...
+
+    @property
+    def mask(self):
+...
+
+    @mask.setter
+    def mask(self, value):
+...
+
+    @property
+    def unit(self):
+...
+
+    @property
+    def wcs(self):
+...
+
+    @wcs.setter
+    def wcs(self, wcs):
+...
+
+    @property
+    def psf(self):
+...
+
+    @psf.setter
+    def psf(self, value):
+...
+
+    @property
+    def uncertainty(self):
+...
+
+    @uncertainty.setter
+    def uncertainty(self, value):
+...
+```
+
+
+###
+
+Please provide the complete set of locations as either a class name, a function name, or a variable name.
+Note that if you include a class, you do not need to list its specific methods.
+You can include either the entire class or don't include the class name and instead include specific methods in the class.
+### Examples:
+```
+full_path1/file1.py
+function: my_function_1
+class: MyClass1
+function: MyClass2.my_method
+
+full_path2/file2.py
+variable: my_var
+function: MyClass3.my_method
+
+full_path3/file3.py
+function: my_function_2
+function: my_function_3
+function: MyClass4.my_method_1
+class: MyClass5
+```
+
+Return just the locations.
+
+2026-06-26 11:27:34,504 - INFO - ================================================================================
+2026-06-26 11:27:34,504 - INFO - Initializing a decoder model: deepseek-v4-pro ...
+2026-06-26 11:27:34,569 - INFO - Creating API request
+2026-06-26 11:27:48,837 - INFO - API response ChatCompletion(id='cbb4095c-a7d3-4cbe-a1d0-5da496f79466', choices=[Choice(finish_reason='stop', index=0, logprobs=None, message=ChatCompletionMessage(content='```\nastropy/nddata/mixins/ndarithmetic.py\nfunction: NDArithmeticMixin._arithmetic_mask\n```', refusal=None, role='assistant', annotations=None, audio=None, function_call=None, tool_calls=None, reasoning_content='We need to identify locations that need inspection or fixing. The issue: NDDataRef mask propagation fails when one operand doesn\'t have a mask. The error occurs in `_arithmetic_mask` likely because it tries to apply `handle_mask` function (default `np.logical_or`) to mask values where one mask is None (from operand without mask). The correct behavior is to copy the existing mask if only one operand has a mask, or handle None gracefully.\n\nLooking at skeleton: we have `NDArithmeticMixin._arithmetic_mask`. That\'s the method likely handling mask propagation. We also have `_arithmetic` method that calls these sub-methods. Look at the provided partial code: `handle_mask` parameter default is `np.logical_or`, but in the user call they used `handle_mask=np.bitwise_or`. That\'s fine. The error is about bitwise_or trying to operate on int and None, meaning one operand\'s mask is None. So `_arithmetic_mask` likely doesn\'t handle the case where `self.mask` or `operand.mask` is None, and just passes both to handle_mask. In v5.2 it worked, so there was likely a change in v5.3 that introduced this bug. Need to inspect `_arithmetic_mask` implementation (not fully shown) but it\'s a method of `NDArithmeticMixin`. Also potentially related: `NDData` class has `mask` property and setter, but the issue is in the arithmetic mixin.\n\nThus locations: the method `NDArithmeticMixin._arithmetic_mask` is the primary suspect. Also `NDArithmeticMixin._arithmetic` because it orchestrates calls, maybe it\'s supposed to handle None masks before calling `_arithmetic_mask`, but likely the bug is directly inside `_arithmetic_mask`. So we should list that method.\n\nWe might also consider any global variables, but none obvious. No other files. So the only relevant location is `astropy/nddata/mixins/ndarithmetic.py` and within it, method `NDArithmeticMixin._arithmetic_mask`. There\'s no need to list the entire class because the class is already provided as a skeleton; we need specific method. So answer:\n\n```\nastropy/nddata/mixins/ndarithmetic.py\nfunction: NDArithmeticMixin._arithmetic_mask\n```\n\nBut also possibly `NDArithmeticMixin._arithmetic` because the error propagation might need to handle missing masks earlier. However, the traceback will point inside `_arithmetic_mask`. But to be safe, we could mention both. The user says: "Please provide the complete set of locations as either a class name, a function name, or a variable name." In the examples they include individual methods. So I\'ll list the method. Additionally, maybe the mixing\'s `multiply` method calls `_arithmetic` which calls `_arithmetic_mask`. But those are just callers; the actual fix is inside `_arithmetic_mask`. So I\'ll provide that.\n\nPotential global variable: `_arit_doc` is just docstring template. Not relevant. `__all__` not relevant. So final answer: one location.\n\nI\'ll format as:\n\n```\nastropy/nddata/mixins/ndarithmetic.py\nfunction: NDArithmeticMixin._arithmetic_mask\n```\n\nBut note that the method name includes the class prefix? The instructions say: "For each location you provide, either give the name of the class, the name of a method in a class, the name of a function, or the name of a global variable." And example: "function: MyClass2.my_method". So I\'ll use "function: NDArithmeticMixin._arithmetic_mask". I\'ll include the file path. So final answer.'))], created=1782444455, model='deepseek-v4-pro', object='chat.completion', moderation=None, service_tier=None, system_fingerprint='fp_9954b31ca7_prod0820_fp8_kvcache_20260402', usage=CompletionUsage(completion_tokens=827, prompt_tokens=2837, total_tokens=3664, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=798, rejected_prediction_tokens=None), prompt_tokens_details=PromptTokensDetails(audio_tokens=None, cached_tokens=0), prompt_cache_hit_tokens=0, prompt_cache_miss_tokens=2837))
+2026-06-26 11:27:48,837 - INFO - ==== raw output ====
+2026-06-26 11:27:48,837 - INFO - ```
+astropy/nddata/mixins/ndarithmetic.py
+function: NDArithmeticMixin._arithmetic_mask
+```
+2026-06-26 11:27:48,837 - INFO - ================================================================================
+2026-06-26 11:27:48,837 - INFO - ==== extracted locs ====
+2026-06-26 11:27:48,837 - INFO - astropy/nddata/mixins/ndarithmetic.py
+2026-06-26 11:27:48,837 - INFO - astropy/nddata/nddata.py
+2026-06-26 11:27:48,837 - INFO - ================================================================================

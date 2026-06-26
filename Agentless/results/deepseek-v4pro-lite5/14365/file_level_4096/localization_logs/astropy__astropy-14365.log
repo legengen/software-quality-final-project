@@ -1,0 +1,670 @@
+2026-06-26 11:16:20,610 - INFO - Processing bug astropy__astropy-14365
+2026-06-26 11:16:51,849 - INFO - ================ localize astropy__astropy-14365 ================
+2026-06-26 11:16:51,865 - INFO - prompting with message:
+Please look through the following GitHub problem description and Repository structure and provide a list of files that one would need to edit to fix the problem.
+
+### GitHub Problem Description ###
+ascii.qdp Table format assumes QDP commands are upper case
+### Description
+
+ascii.qdp assumes that commands in a QDP file are upper case, for example, for errors they must be "READ SERR 1 2" whereas QDP itself is not case sensitive and case use "read serr 1 2". 
+
+As many QDP files are created by hand, the expectation that all commands be all-caps should be removed.
+
+### Expected behavior
+
+The following qdp file should read into a `Table` with errors, rather than crashing.
+```
+read serr 1 2 
+1 0.5 1 0.5
+```
+
+### How to Reproduce
+
+Create a QDP file:
+```
+> cat > test.qdp
+read serr 1 2 
+1 0.5 1 0.5
+<EOF>
+
+ > python
+Python 3.10.9 (main, Dec  7 2022, 02:03:23) [Clang 13.0.0 (clang-1300.0.29.30)] on darwin
+Type "help", "copyright", "credits" or "license" for more information.
+>>> from astropy.table import Table
+>>> Table.read('test.qdp',format='ascii.qdp')
+WARNING: table_id not specified. Reading the first available table [astropy.io.ascii.qdp]
+Traceback (most recent call last):
+...
+    raise ValueError(f'Unrecognized QDP line: {line}')
+ValueError: Unrecognized QDP line: read serr 1 2
+```
+
+Running "qdp test.qdp" works just fine.
+
+
+### Versions
+
+Python 3.10.9 (main, Dec  7 2022, 02:03:23) [Clang 13.0.0 (clang-1300.0.29.30)]
+astropy 5.1
+Numpy 1.24.1
+pyerfa 2.0.0.1
+Scipy 1.10.0
+Matplotlib 3.6.3
+
+
+
+###
+
+### Repository Structure ###
+astropy/
+    setup.py
+    conftest.py
+    __init__.py
+    version.py
+    logger.py
+    visualization/
+        transform.py
+        __init__.py
+        hist.py
+        lupton_rgb.py
+        stretch.py
+        mpl_normalize.py
+        units.py
+        time.py
+        mpl_style.py
+        interval.py
+        scripts/
+            __init__.py
+            fits2bitmap.py
+        wcsaxes/
+            axislabels.py
+            __init__.py
+            core.py
+            coordinates_map.py
+            grid_paths.py
+            wcsapi.py
+            frame.py
+            helpers.py
+            utils.py
+            coordinate_helpers.py
+            ticklabels.py
+            transforms.py
+            formatter_locator.py
+            patches.py
+            ticks.py
+            coordinate_range.py
+    cosmology/
+        parameter.py
+        __init__.py
+        core.py
+        realizations.py
+        utils.py
+        parameters.py
+        units.py
+        connect.py
+        io/
+            __init__.py
+            html.py
+            model.py
+            mapping.py
+            ecsv.py
+            cosmology.py
+            table.py
+            utils.py
+            yaml.py
+            row.py
+        funcs/
+            __init__.py
+            optimize.py
+            comparison.py
+        flrw/
+            __init__.py
+            w0cdm.py
+            base.py
+            wpwazpcdm.py
+            lambdacdm.py
+            w0wzcdm.py
+            w0wacdm.py
+    nddata/
+        _testing.py
+        nddata.py
+        __init__.py
+        ccddata.py
+        decorators.py
+        flag_collection.py
+        blocks.py
+        utils.py
+        bitmask.py
+        nddata_base.py
+        nddata_withmixins.py
+        compat.py
+        nduncertainty.py
+        mixins/
+            __init__.py
+            ndslicing.py
+            ndio.py
+            ndarithmetic.py
+    modeling/
+        separable.py
+        __init__.py
+        bounding_box.py
+        core.py
+        optimizers.py
+        models.py
+        tabular.py
+        math_functions.py
+        projections.py
+        utils.py
+        convolution.py
+        polynomial.py
+        parameters.py
+        mappings.py
+        fitting.py
+        physical_models.py
+        statistic.py
+        spline.py
+        rotations.py
+        functional_models.py
+        powerlaws.py
+    io/
+        __init__.py
+        ascii/
+            daophot.py
+            latex.py
+            docs.py
+            __init__.py
+            html.py
+            qdp.py
+            core.py
+            ui.py
+            misc.py
+            rst.py
+            ecsv.py
+            fixedwidth.py
+            ipac.py
+            fastbasic.py
+            cds.py
+            sextractor.py
+            setup_package.py
+            mrt.py
+            connect.py
+            basic.py
+        registry/
+            __init__.py
+            core.py
+            base.py
+            compat.py
+            interface.py
+        votable/
+            exceptions.py
+            util.py
+            __init__.py
+            converters.py
+            table.py
+            tree.py
+            setup_package.py
+            volint.py
+            connect.py
+            xmlutil.py
+            ucd.py
+            validator/
+                __init__.py
+                html.py
+                main.py
+                result.py
+        fits/
+            fitstime.py
+            util.py
+            __init__.py
+            fitsrec.py
+            card.py
+            diff.py
+            column.py
+            header.py
+            verify.py
+            convenience.py
+            connect.py
+            file.py
+            scripts/
+                __init__.py
+                fitsinfo.py
+                fitscheck.py
+                fitsdiff.py
+                fitsheader.py
+            _tiled_compression/
+                __init__.py
+                codecs.py
+                utils.py
+                quantization.py
+                tiled_compression.py
+                setup_package.py
+            hdu/
+                __init__.py
+                compressed.py
+                streaming.py
+                hdulist.py
+                base.py
+                table.py
+                nonstandard.py
+                groups.py
+                image.py
+        misc/
+            __init__.py
+            parquet.py
+            yaml.py
+            connect.py
+            hdf5.py
+            pickle_helpers.py
+            asdf/
+                __init__.py
+                extension.py
+                deprecation.py
+                types.py
+                connect.py
+                conftest.py
+                tags/
+                    __init__.py
+                    helpers.py
+                    table/
+                        __init__.py
+                        table.py
+                    time/
+                        __init__.py
+                        timedelta.py
+                        time.py
+                    unit/
+                        __init__.py
+                        unit.py
+                        equivalency.py
+                        quantity.py
+                    transform/
+                        __init__.py
+                        compound.py
+                        tabular.py
+                        projections.py
+                        math.py
+                        polynomial.py
+                        physical_models.py
+                        basic.py
+                        spline.py
+                        functional_models.py
+                        powerlaws.py
+                    fits/
+                        __init__.py
+                        fits.py
+                    coordinates/
+                        __init__.py
+                        representation.py
+                        earthlocation.py
+                        frames.py
+                        skycoord.py
+                        spectralcoord.py
+                        angle.py
+            pandas/
+                __init__.py
+                connect.py
+    extern/
+        __init__.py
+        _strptime.py
+        jquery/
+            __init__.py
+        configobj/
+            __init__.py
+            configobj.py
+            validate.py
+        ply/
+            ygen.py
+            __init__.py
+            ctokens.py
+            lex.py
+            cpp.py
+            yacc.py
+    samp/
+        standard_profile.py
+        hub.py
+        __init__.py
+        constants.py
+        web_profile.py
+        utils.py
+        errors.py
+        integrated_client.py
+        hub_proxy.py
+        setup_package.py
+        lockfile_helpers.py
+        client.py
+        hub_script.py
+    table/
+        np_utils.py
+        index.py
+        info.py
+        __init__.py
+        soco.py
+        ndarray_mixin.py
+        jsviewer.py
+        pprint.py
+        operations.py
+        column.py
+        table.py
+        meta.py
+        bst.py
+        setup_package.py
+        table_helpers.py
+        connect.py
+        sorted_array.py
+        pandas.py
+        groups.py
+        serialize.py
+        row.py
+        scripts/
+            __init__.py
+            showtable.py
+        mixins/
+            __init__.py
+            dask.py
+            registry.py
+    units/
+        equivalencies.py
+        __init__.py
+        cgs.py
+        physical.py
+        core.py
+        si.py
+        misc.py
+        deprecated.py
+        decorators.py
+        structured.py
+        astrophys.py
+        imperial.py
+        utils.py
+        quantity.py
+        cds.py
+        required_by_vounit.py
+        photometric.py
+        _typing.py
+        function/
+            __init__.py
+            core.py
+            mixin.py
+            logarithmic.py
+            units.py
+        quantity_helper/
+            function_helpers.py
+            __init__.py
+            converters.py
+            erfa.py
+            helpers.py
+            scipy_special.py
+        format/
+            latex.py
+            console.py
+            __init__.py
+            fits.py
+            generic_lextab.py
+            unicode_format.py
+            ogip_parsetab.py
+            base.py
+            cds_parsetab.py
+            ogip_lextab.py
+            vounit.py
+            utils.py
+            cds_lextab.py
+            cds.py
+            ogip.py
+            generic.py
+            generic_parsetab.py
+    config/
+        paths.py
+        __init__.py
+        configuration.py
+    time/
+        __init__.py
+        core.py
+        formats.py
+        utils.py
+        setup_package.py
+        time_helper/
+            function_helpers.py
+            __init__.py
+    convolution/
+        __init__.py
+        core.py
+        kernels.py
+        utils.py
+        setup_package.py
+        convolve.py
+    constants/
+        config.py
+        __init__.py
+        cgs.py
+        codata2014.py
+        si.py
+        codata2010.py
+        iau2015.py
+        astropyconst13.py
+        utils.py
+        iau2012.py
+        astropyconst20.py
+        astropyconst40.py
+        constant.py
+        codata2018.py
+    uncertainty/
+        __init__.py
+        core.py
+        distributions.py
+    _dev/
+        __init__.py
+        scm_version.py
+    timeseries/
+        downsample.py
+        __init__.py
+        core.py
+        sampled.py
+        binned.py
+        io/
+            __init__.py
+            kepler.py
+        periodograms/
+            __init__.py
+            base.py
+            lombscargle/
+                __init__.py
+                core.py
+                utils.py
+                _statistics.py
+                implementations/
+                    chi2_impl.py
+                    __init__.py
+                    fastchi2_impl.py
+                    fast_impl.py
+                    utils.py
+                    slow_impl.py
+                    main.py
+                    mle.py
+                    scipy_impl.py
+            bls/
+                __init__.py
+                core.py
+                setup_package.py
+                methods.py
+    wcs/
+        wcslint.py
+        docstrings.py
+        __init__.py
+        utils.py
+        setup_package.py
+        wcs.py
+        wcsapi/
+            high_level_api.py
+            __init__.py
+            utils.py
+            fitswcs.py
+            sliced_low_level_wcs.py
+            high_level_wcs_wrapper.py
+            low_level_api.py
+            conftest.py
+            wrappers/
+                __init__.py
+                sliced_wcs.py
+                base.py
+    coordinates/
+        erfa_astrom.py
+        angles.py
+        name_resolve.py
+        angle_lextab.py
+        jparser.py
+        __init__.py
+        solar_system.py
+        spectral_quantity.py
+        representation.py
+        sites.py
+        angle_parsetab.py
+        angle_utilities.py
+        angle_formats.py
+        baseframe.py
+        transformations.py
+        calculation.py
+        orbital_elements.py
+        sky_coordinate.py
+        errors.py
+        matrix_utilities.py
+        matching.py
+        funcs.py
+        attributes.py
+        earth_orientation.py
+        sky_coordinate_parsers.py
+        earth.py
+        distances.py
+        spectral_coordinate.py
+        builtin_frames/
+            ecliptic_transforms.py
+            fk5.py
+            fk4.py
+            fk4_fk5_transforms.py
+            supergalactic_transforms.py
+            itrs.py
+            __init__.py
+            hadec.py
+            baseradec.py
+            itrs_observed_transforms.py
+            hcrs.py
+            skyoffset.py
+            icrs_observed_transforms.py
+            supergalactic.py
+            utils.py
+            cirs_observed_transforms.py
+            icrs_fk5_transforms.py
+            galactic_transforms.py
+            icrs_cirs_transforms.py
+            galactic.py
+            ecliptic.py
+            galactocentric.py
+            icrs.py
+            cirs.py
+            intermediate_rotation_transforms.py
+            lsr.py
+            altaz.py
+            gcrs.py
+            equatorial.py
+    utils/
+        metadata.py
+        data.py
+        exceptions.py
+        console.py
+        state.py
+        __init__.py
+        introspection.py
+        shapes.py
+        data_info.py
+        misc.py
+        diff.py
+        collections.py
+        decorators.py
+        parsing.py
+        codegen.py
+        setup_package.py
+        argparse.py
+        iers/
+            __init__.py
+            iers.py
+        masked/
+            function_helpers.py
+            __init__.py
+            core.py
+        compat/
+            __init__.py
+            numpycompat.py
+            misc.py
+            optional_deps.py
+        xml/
+            unescaper.py
+            __init__.py
+            iterparser.py
+            writer.py
+            check.py
+            setup_package.py
+            validate.py
+    stats/
+        biweight.py
+        __init__.py
+        bayesian_blocks.py
+        sigma_clipping.py
+        info_theory.py
+        histogram.py
+        circstats.py
+        funcs.py
+        setup_package.py
+        jackknife.py
+        spatial.py
+        lombscargle/
+            __init__.py
+        bls/
+            __init__.py
+examples/
+    io/
+        plot_fits-image.py
+        skip_create-large-fits.py
+        modify-fits-header.py
+        fits-tables.py
+        create-mef.py
+        split-jpeg-to-fits.py
+    template/
+        example-template.py
+    coordinates/
+        rv-to-gsr.py
+        plot_galactocentric-frame.py
+        plot_sgr-coordinate-frame.py
+        plot_obs-planning.py
+docs/
+    conf.py
+    conftest.py
+    nddata/
+        examples/
+            cutout2d_tofits.py
+    wcs/
+        examples/
+            cube_wcs.py
+            from_file.py
+            programmatic.py
+.pyinstaller
+    run_astropy_tests.py
+    hooks/
+        hook-skyfield.py
+
+###
+
+Please only provide the full path and return at most 5 files.
+The returned files should be separated by new lines ordered by most to least important and wrapped with ```
+For example:
+```
+file1.py
+file2.py
+```
+2026-06-26 11:16:51,865 - INFO - ================================================================================
+2026-06-26 11:16:51,866 - INFO - Initializing a decoder model: deepseek-v4-pro ...
+2026-06-26 11:16:51,944 - INFO - Creating API request
+2026-06-26 11:16:58,294 - INFO - API response ChatCompletion(id='db532e5d-4467-436d-b931-f99d88a6c8f9', choices=[Choice(finish_reason='stop', index=0, logprobs=None, message=ChatCompletionMessage(content='```\nastropy/io/ascii/qdp.py\nastropy/io/ascii/tests/test_qdp.py\n```', refusal=None, role='assistant', annotations=None, audio=None, function_call=None, tool_calls=None, reasoning_content='We need to find files to fix the issue: ascii.qdp Table format assumes QDP commands are upper case. The file handling QDP format is likely in io/ascii/qdp.py. Also, there may be related files like core.py, ui.py, or tests. But the primary file to edit is the QDP reader. So I\'d expect the fix to be in qdp.py. Possibly also the test file for QDP. And maybe the core reader if the command parsing is there. But likely just qdp.py. From the repository structure, the path is astropy/io/ascii/qdp.py. Also there might be a test file like astropy/io/ascii/tests/test_qdp.py. That\'s a plausible file to update for tests. So the most important file is qdp.py, then test_qdp.py. Potentially also the core.py if the parsing relies on some generic command handler, but it says "Unrecognized QDP line" from qdp.py. So I\'ll list qdp.py and its test file. Only up to 5 files. So I\'ll list them.\n\nAlso note the problem mentions "ascii.qdp" format, so qdp.py. No need for others. I\'ll provide full paths.'))], created=1782443812, model='deepseek-v4-pro', object='chat.completion', moderation=None, service_tier=None, system_fingerprint='fp_9954b31ca7_prod0820_fp8_kvcache_20260402', usage=CompletionUsage(completion_tokens=292, prompt_tokens=3579, total_tokens=3871, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=264, rejected_prediction_tokens=None), prompt_tokens_details=PromptTokensDetails(audio_tokens=None, cached_tokens=0), prompt_cache_hit_tokens=0, prompt_cache_miss_tokens=3579))
+2026-06-26 11:16:58,301 - INFO - ```
+astropy/io/ascii/qdp.py
+astropy/io/ascii/tests/test_qdp.py
+```

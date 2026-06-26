@@ -1,0 +1,319 @@
+2026-06-26 10:24:58,733 - INFO - ================ repairing astropy__astropy-12907 ================
+2026-06-26 10:25:01,414 - INFO - prompting with message:
+We are currently solving the following issue within our repository. Here is the issue text:
+--- BEGIN ISSUE ---
+Modeling's `separability_matrix` does not compute separability correctly for nested CompoundModels
+Consider the following model:
+
+```python
+from astropy.modeling import models as m
+from astropy.modeling.separable import separability_matrix
+
+cm = m.Linear1D(10) & m.Linear1D(5)
+```
+
+It's separability matrix as you might expect is a diagonal:
+
+```python
+>>> separability_matrix(cm)
+array([[ True, False],
+       [False,  True]])
+```
+
+If I make the model more complex:
+```python
+>>> separability_matrix(m.Pix2Sky_TAN() & m.Linear1D(10) & m.Linear1D(5))
+array([[ True,  True, False, False],
+       [ True,  True, False, False],
+       [False, False,  True, False],
+       [False, False, False,  True]])
+```
+
+The output matrix is again, as expected, the outputs and inputs to the linear models are separable and independent of each other.
+
+If however, I nest these compound models:
+```python
+>>> separability_matrix(m.Pix2Sky_TAN() & cm)
+array([[ True,  True, False, False],
+       [ True,  True, False, False],
+       [False, False,  True,  True],
+       [False, False,  True,  True]])
+```
+Suddenly the inputs and outputs are no longer separable?
+
+This feels like a bug to me, but I might be missing something?
+
+--- END ISSUE ---
+
+
+Below are some code segments, each from a relevant file. One or more of these files may contain bugs.
+
+--- BEGIN FILE ---
+```
+### astropy/modeling/separable.py
+...
+100|    separable_matrix = _separable(transform)
+101|    separable_matrix = np.where(separable_matrix != 0, True, False)
+102|    return separable_matrix
+103|
+104|
+105|def _compute_n_outputs(left, right):
+106|    """
+107|    Compute the number of outputs of two models.
+108|
+109|    The two models are the left and right model to an operation in
+110|    the expression tree of a compound model.
+111|
+112|    Parameters
+113|    ----------
+114|    left, right : `astropy.modeling.Model` or ndarray
+115|        If input is of an array, it is the output of `coord_matrix`.
+116|
+117|    """
+118|    if isinstance(left, Model):
+119|        lnout = left.n_outputs
+120|    else:
+121|        lnout = left.shape[0]
+122|    if isinstance(right, Model):
+123|        rnout = right.n_outputs
+124|    else:
+125|        rnout = right.shape[0]
+126|    noutp = lnout + rnout
+127|    return noutp
+128|
+129|
+130|def _arith_oper(left, right):
+131|    """
+132|    Function corresponding to one of the arithmetic operators
+133|    ['+', '-'. '*', '/', '**'].
+134|
+135|    This always returns a nonseparable output.
+136|
+137|
+138|    Parameters
+139|    ----------
+140|    left, right : `astropy.modeling.Model` or ndarray
+141|        If input is of an array, it is the output of `coord_matrix`.
+142|
+143|    Returns
+144|    -------
+145|    result : ndarray
+146|        Result from this operation.
+147|    """
+148|    # models have the same number of inputs and outputs
+149|    def _n_inputs_outputs(input):
+150|        if isinstance(input, Model):
+151|            n_outputs, n_inputs = input.n_outputs, input.n_inputs
+152|        else:
+153|            n_outputs, n_inputs = input.shape
+154|        return n_inputs, n_outputs
+155|
+156|    left_inputs, left_outputs = _n_inputs_outputs(left)
+157|    right_inputs, right_outputs = _n_inputs_outputs(right)
+158|
+159|    if left_inputs != right_inputs or left_outputs != right_outputs:
+160|        raise ModelDefinitionError(
+161|            "Unsupported operands for arithmetic operator: left (n_inputs={}, "
+162|            "n_outputs={}) and right (n_inputs={}, n_outputs={}); "
+163|            "models must have the same n_inputs and the same "
+164|            "n_outputs for this operator.".format(
+165|                left_inputs, left_outputs, right_inputs, right_outputs))
+166|
+167|    result = np.ones((left_outputs, left_inputs))
+168|    return result
+169|
+170|
+171|def _coord_matrix(model, pos, noutp):
+172|    """
+173|    Create an array representing inputs and outputs of a simple model.
+174|
+175|    The array has a shape (noutp, model.n_inputs).
+176|
+177|    Parameters
+178|    ----------
+179|    model : `astropy.modeling.Model`
+180|        model
+181|    pos : str
+182|        Position of this model in the expression tree.
+183|        One of ['left', 'right'].
+184|    noutp : int
+185|        Number of outputs of the compound model of which the input model
+186|        is a left or right child.
+187|
+188|    """
+189|    if isinstance(model, Mapping):
+190|        axes = []
+191|        for i in model.mapping:
+192|            axis = np.zeros((model.n_inputs,))
+193|            axis[i] = 1
+194|            axes.append(axis)
+195|        m = np.vstack(axes)
+196|        mat = np.zeros((noutp, model.n_inputs))
+197|        if pos == 'left':
+198|            mat[: model.n_outputs, :model.n_inputs] = m
+199|        else:
+200|            mat[-model.n_outputs:, -model.n_inputs:] = m
+201|        return mat
+202|    if not model.separable:
+203|        # this does not work for more than 2 coordinates
+204|        mat = np.zeros((noutp, model.n_inputs))
+205|        if pos == 'left':
+206|            mat[:model.n_outputs, : model.n_inputs] = 1
+207|        else:
+208|            mat[-model.n_outputs:, -model.n_inputs:] = 1
+209|    else:
+210|        mat = np.zeros((noutp, model.n_inputs))
+211|
+212|        for i in range(model.n_inputs):
+213|            mat[i, i] = 1
+214|        if pos == 'right':
+215|            mat = np.roll(mat, (noutp - model.n_outputs))
+216|    return mat
+217|
+218|
+219|def _cstack(left, right):
+220|    """
+221|    Function corresponding to '&' operation.
+222|
+223|    Parameters
+224|    ----------
+225|    left, right : `astropy.modeling.Model` or ndarray
+226|        If input is of an array, it is the output of `coord_matrix`.
+227|
+228|    Returns
+229|    -------
+230|    result : ndarray
+231|        Result from this operation.
+232|
+233|    """
+234|    noutp = _compute_n_outputs(left, right)
+235|
+236|    if isinstance(left, Model):
+237|        cleft = _coord_matrix(left, 'left', noutp)
+238|    else:
+239|        cleft = np.zeros((noutp, left.shape[1]))
+240|        cleft[: left.shape[0], : left.shape[1]] = left
+241|    if isinstance(right, Model):
+242|        cright = _coord_matrix(right, 'right', noutp)
+243|    else:
+244|        cright = np.zeros((noutp, right.shape[1]))
+245|        cright[-right.shape[0]:, -right.shape[1]:] = 1
+246|
+247|    return np.hstack([cleft, cright])
+248|
+249|
+250|def _cdot(left, right):
+251|    """
+252|    Function corresponding to "|" operation.
+253|
+254|    Parameters
+255|    ----------
+256|    left, right : `astropy.modeling.Model` or ndarray
+257|        If input is of an array, it is the output of `coord_matrix`.
+258|
+259|    Returns
+260|    -------
+261|    result : ndarray
+262|        Result from this operation.
+263|    """
+264|
+265|    left, right = right, left
+266|
+267|    def _n_inputs_outputs(input, position):
+...
+```
+--- END FILE ---
+
+Please generate `edit_file` commands to fix the issue.
+
+The `edit_file` command takes four arguments:
+
+edit_file(filename: str, start: int, end: int, content: str) -> None:
+    Edit a file. It replaces lines `start` through `end` (inclusive) with the given text `content` in the open file.
+    Args:
+    filename: str: The full file name to edit.
+    start: int: The start line number. Must satisfy start >= 1.
+    end: int: The end line number. Must satisfy start <= end <= number of lines in the file.
+    content: str: The content to replace the lines with.
+
+Please note that THE `edit_file` FUNCTION REQUIRES PROPER INDENTATION. If you would like to add the line '        print(x)', you must fully write that out, with all those spaces before the code!
+Wrap the `edit_file` command in blocks ```python...```.
+2026-06-26 10:25:01,414 - INFO - Initializing a decoder model: deepseek-v4-pro ...
+2026-06-26 10:25:01,432 - INFO - Creating API request
+2026-06-26 10:25:57,236 - INFO - API response ChatCompletion(id='3bb225bf-ff96-44b5-831f-02c795060b1e', choices=[Choice(finish_reason='stop', index=0, logprobs=None, message=ChatCompletionMessage(content='```python\nedit_file("astropy/modeling/separable.py", 245, 245, "        cright[-right.shape[0]:, -right.shape[1]:] = right")\n```', refusal=None, role='assistant', annotations=None, audio=None, function_call=None, tool_calls=None, reasoning_content='We need to analyze the issue: `separability_matrix` does not compute separability correctly for nested CompoundModels. Example given: `m.Pix2Sky_TAN() & cm` where `cm = m.Linear1D(10) & m.Linear1D(5)`. The expected output matrix should be like:\n\n```\narray([[ True,  True, False, False],\n       [ True,  True, False, False],\n       [False, False,  True, False],\n       [False, False, False,  True]])\n```\n\nBut actual output is:\n\n```\narray([[ True,  True, False, False],\n       [ True,  True, False, False],\n       [False, False,  True,  True],\n       [False, False,  True,  True]])\n```\n\nSo the bottom-right 2x2 block should be diagonal (True on diagonal, False off-diagonal) but it\'s all True. That indicates that when processing the right-hand model (the compound model `cm`), the function `_coord_matrix` or `_cstack` is not correctly handling the case where a model passed to `_cstack` is itself a compound model and the right child in a `&` operation. The separability matrix of `cm` should be diagonal (True, False; False, True). When it\'s used as right operand of `&`, the code likely assumes it\'s not separable and sets all connections to 1 (non-separable), or there\'s an issue with indexing in `_coord_matrix` for `pos=\'right\'`.\n\nLet\'s examine the provided code.\n\nThe `_cstack` function handles \'&\'. It calls `_coord_matrix` for left and right models if they are instances of Model. However, if the model is a compound model, `_coord_matrix` is called on it, not `separability_matrix`? Actually, `_separable` (the recursive function) processes the expression tree of a compound model. When encountering a \'&\' operator, it calls `_cstack(left_value, right_value)`. left_value and right_value are results from recursively evaluating the subtrees. They could be arrays (separability matrices) or Model objects? Wait, the code snippet for `_separable` isn\'t fully given, but from `_cstack`: it receives left and right which are either Model or ndarray. For a simple model, `_separable` presumably returns the model itself? Or does it convert to an array? Let\'s check the logic.\n\nThe function `_coord_matrix` is called only when the input is a Model. For a compound model like `cm`, `isinstance(cm, Model)` is True. So `_cstack` will call `_coord_matrix(cm, \'right\', noutp)`. In `_coord_matrix`, it checks `model.separable`. For `cm`, `model.separable` likely returns False because it\'s a compound model? Actually, `separable` property on a `_CompoundModel` might be computed differently. Python\'s `separable` property might be based on `separable_matrix`? Let\'s look at `separable` property: It is defined as `return separability_matrix(self).all()`? Or something like that. But in `_coord_matrix`, it uses `model.separable` and if false, it creates a matrix with ones for all outputs and inputs (non-separable). That would incorrectly mark the compound model as fully non-separable, leading to the bug.\n\nIndeed, the bug: `_coord_matrix` checks `model.separable` to decide whether to generate a matrix with ones or a matrix with ones only on the diagonal. For a compound model that is actually separable into independent parts, `model.separable` might be True overall? Let\'s test: `cm = Linear1D(10) & Linear1D(5)`. If we call `cm.separable`, what would it be? It\'s likely True because each input maps to a distinct output. The `separable` property probably computes the separability matrix and checks if all entries are True? Actually, `separable` property returns True if the transformation is separable (i.e., each output depends only on one input)? Not exactly. In the context of modeling, `separable` might mean the model\'s Jacobian is diagonal? For `cm`, the Jacobian is diagonal, so it\'s separable. So `cm.separable` should be True. But the output matrix from `separability_matrix` is not correct because `_coord_matrix` is being called on the compound model `cm`, and inside it, `model.separable` is True, so it goes to the `else` branch (line 209) where it creates a matrix with ones on the diagonal for each output and input. However, for `pos=\'right\'`, it does `mat = np.roll(mat, (noutp - model.n_outputs))` to shift the diagonal block to the bottom right. That works for a simple model but what about a compound model? For a compound model, `model.n_inputs` and `model.n_outputs` are the total numbers of inputs/outputs of the compound model. For `cm`, n_inputs=2, n_outputs=2. So `_coord_matrix` would produce a 2x2 diagonal matrix ([[1,0],[0,1]]) shifted to the bottom-right of a larger matrix (which is 4x4 because noutp=4). That would result in a 4x4 matrix with ones at positions (2,2) and (3,3). But the expected result is that the right part (cm) has two inputs and two outputs, each output depending on its corresponding input only. That is exactly what a diagonal matrix would capture: output0 depends on input0, output1 depends on input1. So why does the separability matrix for `m.Pix2Sky_TAN() & cm` show all ones in the bottom-right? Let\'s step through.\n\nThe `separability_matrix` for `m.Pix2Sky_TAN() & cm` will be computed by `_separable` which eventually calls `_cstack` on left (Pix2Sky_TAN) and right (cm). For left, `_coord_matrix` for Pix2Sky_TAN: Pix2Sky_TAN is separable? Not sure, but its `separable` property likely returns False because its outputs depend on both inputs. In the issue example, the top-left 2x2 block for Pix2Sky_TAN is all True, which matches non-separable behavior. So for Pix2Sky_TAN, `_coord_matrix` returns a matrix with ones in the top-left 2x2 block. For right (cm), if `_coord_matrix` returns a diagonal block in bottom-right, we get a diagonal for cm. So why does the final matrix show all True in bottom-right? Possibly because `cm` as a compound model is actually being processed differently: maybe `_separable` doesn\'t call `_coord_matrix` on cm, but recursively processes its submodels, and then the `_cstack` combining those submodels produces a non-diagonal matrix? Wait, the top-level `_separable` is for the whole expression tree. The expression tree for `m.Pix2Sky_TAN() & cm` is: binary operator \'&\' with left = Pix2Sky_TAN (leaf) and right = cm (binary operator \'&\' with left = Linear1D(10), right = Linear1D(5)). So `_separable` will recursively call on left and right, and then apply `_cstack`. So for the right subtree (cm), `_separable` returns the result of `_cstack(Linear1D(10), Linear1D(5))`. That result is an array, not a Model. Indeed, after processing a sub-expression, the result is the separability matrix array, not a Model. So when the top-level `_cstack` receives right=array (not Model), it goes to the `else` branch (line 243): `cright = np.zeros((noutp, right.shape[1])); cright[-right.shape[0]:, -right.shape[1]:] = 1`. This sets a block of ones, not a diagonal block! That\'s the bug. The else branch at line 243-245 is setting the entire block to 1, which would cause the observed behavior: bottom-right block all ones.\n\nThe logic in `_cstack` for array input (i.e., already computed separability matrix) incorrectly assumes that the entire partition is fully connected (non-separable), but it should simply place the given array into the appropriate location. The array `right` is the separability matrix of the right submodel. It already has the correct shape (n_out_right x n_in_right). We should just place it in the bottom-right corner of the larger matrix, preserving its values. The code currently does `cright[-right.shape[0]:, -right.shape[1]:] = 1`, setting all those entries to 1. It should be `cright[-right.shape[0]:, -right.shape[1]:] = right`. Similarly for left array: `cleft[: left.shape[0], : left.shape[1]] = left` (line 240) is correct because it assigns the left matrix to the top-left block. Good. But for right, it\'s using 1 instead of the matrix. So fix line 245: change `cright[-right.shape[0]:, -right.shape[1]:] = 1` to `cright[-right.shape[0]:, -right.shape[1]:] = right`.\n\nLet\'s verify with the given example. `_cstack` for cm (simple Linear1D\'s): left=Linear1D(10) (Model), right=Linear1D(5) (Model). noutp=2. `cleft` from `_coord_matrix` for left model: since `left.separable` is True (Linear1D is separable), it creates a 2x1? Wait, Linear1D has 1 input, 1 output. So n_inputs=1, n_outputs=1. `mat` is zeros (2,1), then for pos=\'left\', it sets `mat[:1, :1]` to a 1x1 diagonal? Actually the loop: for i in range(model.n_inputs): mat[i,i]=1; this sets mat[0,0]=1, then for pos=\'left\' the `mat` is left as is (since roll for left doesn\'t happen; line 214-215 only for right). So `cleft` is a 2x1 column vector [[1],[0]]. Similarly `cright` for right model: mat zeros (2,1), sets mat[0,0]=1 (but wait, for pos=\'right\', the loop sets mat[i,i]=1 then after loop, `mat = np.roll(mat, (noutp - model.n_outputs))`. noutp=2, model.n_outputs=1, shift=1, so mat becomes [[0],[1]]. So `cright` is [[0],[1]]. Then hstack gives [[1,0],[0,1]]. So separability matrix for cm is 2x2 identity (diagonal True). That\'s correct.\n\nNow, top-level `_cstack`: left is Pix2Sky_TAN model, right is the 2x2 identity array from previous step. noutp=4 (2+2). For left model (Pix2Sky_TAN): assume not separable, so `_coord_matrix` returns all ones in top-left 2x2 block and zeros elsewhere, shape (4,2). For right array: `isinstance(right, Model)` is False, so else branch: `cright = np.zeros((noutp, right.shape[1]))` -> shape (4,2). Then `cright[-right.shape[0]:, -right.shape[1]:] = right` (if we fix). right.shape[0]=2, right.shape[1]=2, so it places the 2x2 identity into bottom-right 2x2 block. Then hstack gives 4x4 matrix with top-left block all ones, bottom-right block identity. That matches the expected separability matrix from the issue. Good.\n\nThus the fix is to replace line 245 (`cright[-right.shape[0]:, -right.shape[1]:] = 1`) with `cright[-right.shape[0]:, -right.shape[1]:] = right`. Also check the left array branch: it correctly does `cleft[: left.shape[0], : left.shape[1]] = left` (line 240). So only line 245 needs change.\n\nNow we must output an `edit_file` command to edit the file `astropy/modeling/separable.py` at lines 243-245 (maybe just 245). We\'ll replace line 245 with the correct assignment.\n\nWe need to be careful with indentation: line 245 is inside the `else` block, at the same indentation level as line 244. The content for replacement should be exactly that line, or we can replace lines 243-245 entirely to ensure context. The `edit_file` function requires `start` and `end` inclusive line numbers. So we can set `start=245`, `end=245`, and provide the new line content with proper indentation (8 spaces before the code? Let\'s check original: line 243: `        cright = np.zeros((noutp, right.shape[1]))` has 8 spaces (indent of the else block? Actually, the function body indentation is 4 spaces, the else block adds 4 more? Let\'s count: line 241: `    if isinstance(right, Model):` (4 spaces). line 242: `        cright = _coord_matrix(right, \'right\', noutp)` (8 spaces). line 243: `    else:` (4 spaces). line 244: `        cright = np.zeros((noutp, right.shape[1]))` (8 spaces). line 245: `        cright[-right.shape[0]:, -right.shape[1]:] = 1` (8 spaces). So the line has 8 spaces. We\'ll provide exactly `        cright[-right.shape[0]:, -right.shape[1]:] = right`.\n\nThus the edit command: `edit_file("astropy/modeling/separable.py", 245, 245, "        cright[-right.shape[0]:, -right.shape[1]:] = right")`.\n\nDouble-check: line 245 content should replace the line with `= right`. Ensure that we don\'t break anything else.\n\nThere might be another issue: in `_coord_matrix`, for a compound model that is separable, the `model.separable` attribute might not be accurate? But for now, fixing the `_cstack` else branch should resolve the nested compound model case. However, there\'s a deeper issue: `_coord_matrix` is called on compound models in `_cstack` only if the operand is a Model. The bug is that when the right operand is the result of a previous `_cstack` (i.e., an array), it uses `1` instead of the actual matrix. So the fix addresses exactly that.\n\nBut also note: what about `_cdot`? It might have similar issues. The issue report only mentions \'&\' operation, but we can check the `_cdot` function snippet was cut off. The provided file ends at line 267, so we don\'t see full `_cdot`. But for now, just fix `_cstack`. That should resolve the reported issue.'))], created=1782440702, model='deepseek-v4-pro', object='chat.completion', moderation=None, service_tier=None, system_fingerprint='fp_9954b31ca7_prod0820_fp8_kvcache_20260402', usage=CompletionUsage(completion_tokens=3395, prompt_tokens=2234, total_tokens=5629, completion_tokens_details=CompletionTokensDetails(accepted_prediction_tokens=None, audio_tokens=None, reasoning_tokens=3352, rejected_prediction_tokens=None), prompt_tokens_details=PromptTokensDetails(audio_tokens=None, cached_tokens=2176), prompt_cache_hit_tokens=2176, prompt_cache_miss_tokens=58))
+2026-06-26 10:25:57,236 - INFO - Initializing a decoder model: deepseek-v4-pro ...
+2026-06-26 10:25:57,236 - INFO - raw output:
+```python
+edit_file("astropy/modeling/separable.py", 245, 245, "        cright[-right.shape[0]:, -right.shape[1]:] = right")
+```
+2026-06-26 10:25:57,237 - INFO - === file_to_commands: ===
+2026-06-26 10:25:57,237 - INFO - {
+  "\"astropy/modeling/separable.py\"": [
+    "edit_file( 245, 245, \"        cright[-right.shape[0]:, -right.shape[1]:] = right\")"
+  ]
+}
+2026-06-26 10:25:57,237 - INFO - === edited_file: "astropy/modeling/separable.py" ===
+2026-06-26 10:25:57,237 - INFO - === edit_commands: ===
+2026-06-26 10:25:57,237 - INFO - edit_file( 245, 245, "        cright[-right.shape[0]:, -right.shape[1]:] = right")
+2026-06-26 10:25:57,237 - INFO - 
+----------------------------------------
+2026-06-26 10:25:57,237 - INFO - extracted patch:
+2026-06-26 10:25:57,237 - INFO - --- astropy/modeling/separable.py
++++ astropy/modeling/separable.py
+@@ -242,7 +242,7 @@
+         cright = _coord_matrix(right, 'right', noutp)
+     else:
+         cright = np.zeros((noutp, right.shape[1]))
+-        cright[-right.shape[0]:, -right.shape[1]:] = 1
++        cright[-right.shape[0]:, -right.shape[1]:] = right
+ 
+     return np.hstack([cleft, cright])
+ 
+2026-06-26 10:25:57,293 - INFO - === file_to_commands: ===
+2026-06-26 10:25:57,293 - INFO - === file_to_commands: ===
+2026-06-26 10:25:57,293 - INFO - {
+  "\"astropy/modeling/separable.py\"": [
+    "edit_file( 245, 245, \"        cright[-right.shape[0]:, -right.shape[1]:] = right\")"
+  ]
+}
+2026-06-26 10:25:57,293 - INFO - {
+  "\"astropy/modeling/separable.py\"": [
+    "edit_file( 245, 245, \"        cright[-right.shape[0]:, -right.shape[1]:] = right\")"
+  ]
+}
+2026-06-26 10:25:57,293 - INFO - === edited_file: "astropy/modeling/separable.py" ===
+2026-06-26 10:25:57,293 - INFO - === edited_file: "astropy/modeling/separable.py" ===
+2026-06-26 10:25:57,293 - INFO - === edit_commands: ===
+2026-06-26 10:25:57,293 - INFO - === edit_commands: ===
+2026-06-26 10:25:57,293 - INFO - edit_file( 245, 245, "        cright[-right.shape[0]:, -right.shape[1]:] = right")
+2026-06-26 10:25:57,293 - INFO - edit_file( 245, 245, "        cright[-right.shape[0]:, -right.shape[1]:] = right")
+2026-06-26 10:25:57,293 - INFO - 
+----------------------------------------
+2026-06-26 10:25:57,293 - INFO - 
+----------------------------------------
+2026-06-26 10:25:57,293 - INFO - extracted patch:
+2026-06-26 10:25:57,293 - INFO - extracted patch:
+2026-06-26 10:25:57,294 - INFO - --- astropy/modeling/separable.py
++++ astropy/modeling/separable.py
+@@ -242,7 +242,7 @@
+         cright = _coord_matrix(right, 'right', noutp)
+     else:
+         cright = np.zeros((noutp, right.shape[1]))
+-        cright[-right.shape[0]:, -right.shape[1]:] = 1
++        cright[-right.shape[0]:, -right.shape[1]:] = right
+ 
+     return np.hstack([cleft, cright])
+ 
+2026-06-26 10:25:57,294 - INFO - --- astropy/modeling/separable.py
++++ astropy/modeling/separable.py
+@@ -242,7 +242,7 @@
+         cright = _coord_matrix(right, 'right', noutp)
+     else:
+         cright = np.zeros((noutp, right.shape[1]))
+-        cright[-right.shape[0]:, -right.shape[1]:] = 1
++        cright[-right.shape[0]:, -right.shape[1]:] = right
+ 
+     return np.hstack([cleft, cright])
+ 
+2026-06-26 10:25:57,609 - INFO - lint_success = True, prev_errors = set(), errors = set(), differ_by_empty_lines = False
+2026-06-26 10:25:57,609 - INFO - lint_success = True, prev_errors = set(), errors = set(), differ_by_empty_lines = False
