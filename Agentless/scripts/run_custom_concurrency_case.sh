@@ -87,6 +87,7 @@ python agentless/repair/repair.py \
   --context_window 20 \
   --max_tokens 4096 \
   --max_samples 1 \
+  --concurrency_hint \
   --gen_and_process \
   --num_threads 1 \
   --model "$MODEL" \

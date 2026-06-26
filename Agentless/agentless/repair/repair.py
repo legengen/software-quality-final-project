@@ -31,6 +31,16 @@ from agentless.util.utils import cleanup_logger, load_jsonl, setup_logger
 repair_relevant_file_instruction = """
 Below are some code segments, each from a relevant file. One or more of these files may contain bugs.
 """
+
+concurrency_repair_hint = """
+
+### Concurrency Repair Guidance ###
+This issue is about concurrent execution. When proposing the fix, explicitly consider shared mutable state,
+read-modify-write sequences, critical sections, and whether all methods that mutate the shared state are
+protected consistently. Prefer a minimal synchronization fix that preserves existing sequential behavior.
+Do not solve the issue by weakening or deleting tests.
+"""
+
 repair_prompt_combine_topn = """
 We are currently solving the following issue within our repository. Here is the issue text:
 --- BEGIN ISSUE ---
@@ -350,6 +360,8 @@ def process_loc(loc, args, swe_bench_data, prev_o, write_lock=None):
         else repair_prompt_combine_topn
     )
     file_instruction = repair_relevant_file_instruction
+    if args.concurrency_hint:
+        problem_statement = problem_statement.rstrip() + concurrency_repair_hint
     message = prompt_template.format(
         repair_relevant_file_instruction=file_instruction,
         problem_statement=problem_statement,
@@ -709,6 +721,7 @@ def main():
     parser.add_argument("--diff_format", action="store_true")
     parser.add_argument("--skip_greedy", action="store_true")
     parser.add_argument("--sticky_scroll", action="store_true")
+    parser.add_argument("--concurrency_hint", action="store_true")
     parser.add_argument(
         "--num_threads",
         type=int,
