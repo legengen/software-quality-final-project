@@ -11,6 +11,23 @@
       "instance_id": "local_concurrency__counter-0001",
       "resolved": true,
       "stable_resolved": true,
+      "patch_risk": {
+        "changed_files": [
+          "concurrent_counter/counter.py"
+        ],
+        "changed_source_files": [
+          "concurrent_counter/counter.py"
+        ],
+        "changed_test_files": [],
+        "uses_lock": true,
+        "uses_context_manager": true,
+        "guards_increment": true,
+        "guards_reset": true,
+        "patches_tests_only": false,
+        "adds_sleep": false,
+        "risk_level": "low",
+        "risk_reasons": []
+      },
       "repeat": 10,
       "passed_runs": 10,
       "failed_runs": 0,
@@ -75,7 +92,7 @@
           "run": 8,
           "exit_code": 0,
           "passed": true,
-          "output": "...                                                                      [100%]\n3 passed in 0.22s\n"
+          "output": "...                                                                      [100%]\n3 passed in 0.21s\n"
         },
         {
           "run": 9,

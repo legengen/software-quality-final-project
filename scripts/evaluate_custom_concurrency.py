@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import subprocess
 import tempfile
@@ -57,6 +58,81 @@ def pytest_selectors(raw: str) -> list[str]:
     if not isinstance(parsed, list):
         raise ValueError(f"Expected test selector list, got: {raw}")
     return parsed
+
+
+def analyze_patch_risk(patch_text: str) -> dict:
+    added_lines = [
+        line[1:]
+        for line in patch_text.splitlines()
+        if line.startswith("+") and not line.startswith("+++")
+    ]
+    removed_lines = [
+        line[1:]
+        for line in patch_text.splitlines()
+        if line.startswith("-") and not line.startswith("---")
+    ]
+    changed_files = [
+        line.split(" b/", 1)[1]
+        for line in patch_text.splitlines()
+        if line.startswith("diff --git ") and " b/" in line
+    ]
+    changed_test_files = [
+        file_path
+        for file_path in changed_files
+        if "/test" in file_path or file_path.startswith("tests/")
+    ]
+    changed_source_files = [
+        file_path for file_path in changed_files if file_path not in changed_test_files
+    ]
+    added_text = "\n".join(added_lines)
+    uses_lock = bool(
+        re.search(r"\b(threading\.)?(Lock|RLock)\s*\(", added_text)
+        or re.search(r"\bwith\s+self\._\w*lock\b", added_text)
+    )
+    uses_context_manager = bool(re.search(r"\bwith\s+self\._\w*lock\b", added_text))
+    guards_increment = (
+        uses_context_manager
+        and "old_value = self._value" in added_text
+        and "self._value = old_value + amount" in added_text
+    )
+    guards_reset = uses_context_manager and "self._value = 0" in added_text
+    patches_tests_only = bool(changed_test_files) and not changed_source_files
+    adds_sleep = "sleep(" in added_text and "sleep(" not in "\n".join(removed_lines)
+
+    risk_reasons = []
+    if not changed_source_files:
+        risk_reasons.append("no source file changed")
+    if patches_tests_only:
+        risk_reasons.append("patch only changes tests")
+    if not uses_lock:
+        risk_reasons.append("no lock or RLock usage detected")
+    if not guards_increment:
+        risk_reasons.append("increment update is not clearly guarded")
+    if not guards_reset:
+        risk_reasons.append("reset update is not clearly guarded")
+    if adds_sleep:
+        risk_reasons.append("patch adds sleep calls")
+
+    if not risk_reasons:
+        risk_level = "low"
+    elif uses_lock and guards_increment and changed_source_files:
+        risk_level = "medium"
+    else:
+        risk_level = "high"
+
+    return {
+        "changed_files": changed_files,
+        "changed_source_files": changed_source_files,
+        "changed_test_files": changed_test_files,
+        "uses_lock": uses_lock,
+        "uses_context_manager": uses_context_manager,
+        "guards_increment": guards_increment,
+        "guards_reset": guards_reset,
+        "patches_tests_only": patches_tests_only,
+        "adds_sleep": adds_sleep,
+        "risk_level": risk_level,
+        "risk_reasons": risk_reasons,
+    }
 
 
 def evaluate_one(
@@ -131,6 +207,7 @@ def evaluate_one(
         "instance_id": case["instance_id"],
         "resolved": resolved,
         "stable_resolved": stable_resolved,
+        "patch_risk": analyze_patch_risk(patch),
         "repeat": repeat,
         "passed_runs": passed_runs,
         "failed_runs": failed_runs,
