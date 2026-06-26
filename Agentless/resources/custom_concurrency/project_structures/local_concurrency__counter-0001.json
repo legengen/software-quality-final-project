@@ -1,0 +1,192 @@
+{
+  "repo": "local/concurrent_counter",
+  "base_commit": "local-concurrency-base",
+  "structure": {
+    "concurrent_counter": {
+      ".pytest_cache": {
+        ".gitignore": {},
+        "CACHEDIR.TAG": {},
+        "README.md": {},
+        "v": {
+          "cache": {
+            "nodeids": {}
+          }
+        }
+      },
+      "README.md": {},
+      "concurrent_counter": {
+        "__init__.py": {
+          "classes": [],
+          "functions": [],
+          "text": [
+            "from .counter import ConcurrentCounter",
+            "",
+            "__all__ = [\"ConcurrentCounter\"]"
+          ]
+        },
+        "counter.py": {
+          "classes": [
+            {
+              "name": "ConcurrentCounter",
+              "start_line": 4,
+              "end_line": 26,
+              "text": [
+                "class ConcurrentCounter:",
+                "    \"\"\"A small counter used to demonstrate thread-safety repairs.\"\"\"",
+                "",
+                "    def __init__(self, initial=0):",
+                "        self._value = initial",
+                "",
+                "    @property",
+                "    def value(self):",
+                "        return self._value",
+                "",
+                "    def increment(self, amount=1):",
+                "        \"\"\"Increase the counter by amount and return the new value.",
+                "",
+                "        This implementation is intentionally not thread-safe: two threads can",
+                "        read the same old value and then overwrite each other's update.",
+                "        \"\"\"",
+                "        old_value = self._value",
+                "        time.sleep(0.00001)",
+                "        self._value = old_value + amount",
+                "        return self._value",
+                "",
+                "    def reset(self):",
+                "        self._value = 0"
+              ],
+              "methods": [
+                {
+                  "name": "__init__",
+                  "start_line": 7,
+                  "end_line": 8,
+                  "text": [
+                    "    def __init__(self, initial=0):",
+                    "        self._value = initial"
+                  ]
+                },
+                {
+                  "name": "value",
+                  "start_line": 11,
+                  "end_line": 12,
+                  "text": [
+                    "    def value(self):",
+                    "        return self._value"
+                  ]
+                },
+                {
+                  "name": "increment",
+                  "start_line": 14,
+                  "end_line": 23,
+                  "text": [
+                    "    def increment(self, amount=1):",
+                    "        \"\"\"Increase the counter by amount and return the new value.",
+                    "",
+                    "        This implementation is intentionally not thread-safe: two threads can",
+                    "        read the same old value and then overwrite each other's update.",
+                    "        \"\"\"",
+                    "        old_value = self._value",
+                    "        time.sleep(0.00001)",
+                    "        self._value = old_value + amount",
+                    "        return self._value"
+                  ]
+                },
+                {
+                  "name": "reset",
+                  "start_line": 25,
+                  "end_line": 26,
+                  "text": [
+                    "    def reset(self):",
+                    "        self._value = 0"
+                  ]
+                }
+              ]
+            }
+          ],
+          "functions": [],
+          "text": [
+            "import time",
+            "",
+            "",
+            "class ConcurrentCounter:",
+            "    \"\"\"A small counter used to demonstrate thread-safety repairs.\"\"\"",
+            "",
+            "    def __init__(self, initial=0):",
+            "        self._value = initial",
+            "",
+            "    @property",
+            "    def value(self):",
+            "        return self._value",
+            "",
+            "    def increment(self, amount=1):",
+            "        \"\"\"Increase the counter by amount and return the new value.",
+            "",
+            "        This implementation is intentionally not thread-safe: two threads can",
+            "        read the same old value and then overwrite each other's update.",
+            "        \"\"\"",
+            "        old_value = self._value",
+            "        time.sleep(0.00001)",
+            "        self._value = old_value + amount",
+            "        return self._value",
+            "",
+            "    def reset(self):",
+            "        self._value = 0"
+          ]
+        }
+      },
+      "tests": {
+        "test_counter.py": {
+          "classes": [],
+          "functions": [
+            {
+              "name": "test_initial_value_defaults_to_zero",
+              "start_line": 4,
+              "end_line": 7,
+              "text": [
+                "def test_initial_value_defaults_to_zero():",
+                "    counter = ConcurrentCounter()",
+                "",
+                "    assert counter.value == 0"
+              ]
+            },
+            {
+              "name": "test_sequential_increment_and_reset",
+              "start_line": 10,
+              "end_line": 17,
+              "text": [
+                "def test_sequential_increment_and_reset():",
+                "    counter = ConcurrentCounter(initial=2)",
+                "",
+                "    assert counter.increment() == 3",
+                "    assert counter.increment(4) == 7",
+                "    counter.reset()",
+                "",
+                "    assert counter.value == 0"
+              ]
+            }
+          ],
+          "text": [
+            "from concurrent_counter import ConcurrentCounter",
+            "",
+            "",
+            "def test_initial_value_defaults_to_zero():",
+            "    counter = ConcurrentCounter()",
+            "",
+            "    assert counter.value == 0",
+            "",
+            "",
+            "def test_sequential_increment_and_reset():",
+            "    counter = ConcurrentCounter(initial=2)",
+            "",
+            "    assert counter.increment() == 3",
+            "    assert counter.increment(4) == 7",
+            "    counter.reset()",
+            "",
+            "    assert counter.value == 0"
+          ]
+        }
+      }
+    }
+  },
+  "instance_id": "local_concurrency__counter-0001"
+}

@@ -1,0 +1,26 @@
+{
+  "summary": {
+    "total": 1,
+    "resolved": 1,
+    "unresolved": 0
+  },
+  "results": [
+    {
+      "instance_id": "local_concurrency__counter-0001",
+      "resolved": true,
+      "test_patch_applied": true,
+      "model_patch_applied": true,
+      "pytest_exit_code": 0,
+      "FAIL_TO_PASS": [
+        "tests/test_counter_thread_safety.py::test_parallel_increment_is_thread_safe"
+      ],
+      "PASS_TO_PASS": [
+        "tests/test_counter.py::test_initial_value_defaults_to_zero",
+        "tests/test_counter.py::test_sequential_increment_and_reset"
+      ],
+      "test_patch_output": "git apply -p1:\n",
+      "model_patch_output": "git apply -p1:\n",
+      "test_output": "...                                                                      [100%]\n3 passed in 0.25s\n"
+    }
+  ]
+}

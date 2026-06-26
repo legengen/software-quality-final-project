@@ -1,0 +1,26 @@
+{
+  "summary": {
+    "total": 1,
+    "resolved": 0,
+    "unresolved": 1
+  },
+  "results": [
+    {
+      "instance_id": "local_concurrency__counter-0001",
+      "resolved": false,
+      "test_patch_applied": true,
+      "model_patch_applied": true,
+      "pytest_exit_code": 1,
+      "FAIL_TO_PASS": [
+        "tests/test_counter_thread_safety.py::test_parallel_increment_is_thread_safe"
+      ],
+      "PASS_TO_PASS": [
+        "tests/test_counter.py::test_initial_value_defaults_to_zero",
+        "tests/test_counter.py::test_sequential_increment_and_reset"
+      ],
+      "test_patch_output": "git apply -p1:\n",
+      "model_patch_output": "empty patch treated as no-op",
+      "test_output": "F..                                                                      [100%]\n=================================== FAILURES ===================================\n____________________ test_parallel_increment_is_thread_safe ____________________\n\n    def test_parallel_increment_is_thread_safe():\n        counter = ConcurrentCounter()\n        workers = 8\n        increments_per_worker = 250\n    \n        with ThreadPoolExecutor(max_workers=workers) as executor:\n            futures = [\n                executor.submit(_increment_many, counter, increments_per_worker)\n                for _ in range(workers)\n            ]\n            for future in futures:\n                future.result()\n    \n>       assert counter.value == workers * increments_per_worker\nE       assert 254 == (8 * 250)\nE        +  where 254 = <concurrent_counter.counter.ConcurrentCounter object at 0x75d981422390>.value\n\ntests/test_counter_thread_safety.py:24: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_counter_thread_safety.py::test_parallel_increment_is_thread_safe\n1 failed, 2 passed in 0.10s\n"
+    }
+  ]
+}
