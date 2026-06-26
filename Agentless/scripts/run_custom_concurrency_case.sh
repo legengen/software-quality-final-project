@@ -22,6 +22,7 @@ INSTANCE_ID="${INSTANCE_ID:-local_concurrency__counter-0001}"
 DATASET="${DATASET:-resources/custom_concurrency/concurrency_cases.json}"
 RESULTS="${RESULTS:-results/custom_concurrency/counter}"
 RUN_LLM="${RUN_LLM:-0}"
+REPEAT="${REPEAT:-10}"
 
 python "$PROJECT_ROOT/scripts/generate_custom_concurrency_case.py"
 
@@ -32,7 +33,8 @@ python "$PROJECT_ROOT/scripts/evaluate_custom_concurrency.py" \
   --predictions "resources/custom_concurrency/gold_patch.jsonl" \
   --benchmark-root "$PROJECT_ROOT/benchmarks/concurrent_counter" \
   --output "results/custom_concurrency/gold_evaluation_report.json" \
-  --python "$PYTEST_PYTHON"
+  --python "$PYTEST_PYTHON" \
+  --repeat "$REPEAT"
 
 if [[ "$RUN_LLM" != "1" ]]; then
   echo "Gold evaluation completed. Set RUN_LLM=1 to run LLM localization and repair."
@@ -96,4 +98,5 @@ python "$PROJECT_ROOT/scripts/evaluate_custom_concurrency.py" \
   --predictions "$RESULTS/repair/output_0_processed.jsonl" \
   --benchmark-root "$PROJECT_ROOT/benchmarks/concurrent_counter" \
   --output "$RESULTS/evaluation_report.json" \
-  --python "$PYTEST_PYTHON"
+  --python "$PYTEST_PYTHON" \
+  --repeat "$REPEAT"

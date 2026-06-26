@@ -65,6 +65,7 @@ def evaluate_one(
     benchmark_root: Path,
     keep_tmp: bool,
     python_executable: str,
+    repeat: int,
 ) -> dict:
     patch = prediction.get("model_patch") or prediction.get("patch") or ""
     tmp_ctx = None
@@ -95,23 +96,54 @@ def evaluate_one(
         model_patch_ok, model_patch_output = apply_patch(repo_dir, patch)
 
     selectors = pytest_selectors(case["FAIL_TO_PASS"]) + pytest_selectors(case["PASS_TO_PASS"])
+    test_runs = []
     if test_patch_ok and model_patch_ok:
-        test_result = run([python_executable, "-m", "pytest", "-q", *selectors], repo_dir)
+        for run_index in range(repeat):
+            test_result = run(
+                [python_executable, "-m", "pytest", "-q", *selectors],
+                repo_dir,
+            )
+            test_runs.append(
+                {
+                    "run": run_index + 1,
+                    "exit_code": test_result.returncode,
+                    "passed": test_result.returncode == 0,
+                    "output": test_result.stdout,
+                }
+            )
     else:
         test_result = subprocess.CompletedProcess([], 1, stdout="patch application failed")
+        test_runs.append(
+            {
+                "run": 1,
+                "exit_code": test_result.returncode,
+                "passed": False,
+                "output": test_result.stdout,
+            }
+        )
 
-    resolved = test_patch_ok and model_patch_ok and test_result.returncode == 0
+    passed_runs = sum(1 for test_run in test_runs if test_run["passed"])
+    failed_runs = len(test_runs) - passed_runs
+    pass_rate = passed_runs / len(test_runs)
+    stable_resolved = test_patch_ok and model_patch_ok and failed_runs == 0
+    resolved = stable_resolved
     result = {
         "instance_id": case["instance_id"],
         "resolved": resolved,
+        "stable_resolved": stable_resolved,
+        "repeat": repeat,
+        "passed_runs": passed_runs,
+        "failed_runs": failed_runs,
+        "pass_rate": pass_rate,
         "test_patch_applied": test_patch_ok,
         "model_patch_applied": model_patch_ok,
-        "pytest_exit_code": test_result.returncode,
+        "pytest_exit_code": test_runs[-1]["exit_code"],
         "FAIL_TO_PASS": pytest_selectors(case["FAIL_TO_PASS"]),
         "PASS_TO_PASS": pytest_selectors(case["PASS_TO_PASS"]),
         "test_patch_output": test_patch_output,
         "model_patch_output": model_patch_output,
-        "test_output": test_result.stdout,
+        "test_output": test_runs[-1]["output"],
+        "test_runs": test_runs,
     }
 
     if keep_tmp:
@@ -129,8 +161,11 @@ def main() -> int:
     parser.add_argument("--benchmark-root", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--python", default="python3")
+    parser.add_argument("--repeat", type=int, default=1)
     parser.add_argument("--keep-tmp", action="store_true")
     args = parser.parse_args()
+    if args.repeat < 1:
+        raise ValueError("--repeat must be at least 1")
 
     cases = {row["instance_id"]: row for row in load_json_rows(args.dataset)}
     predictions = load_json_rows(args.predictions)
@@ -146,6 +181,7 @@ def main() -> int:
                 args.benchmark_root,
                 args.keep_tmp,
                 args.python,
+                args.repeat,
             )
         )
 
@@ -153,6 +189,12 @@ def main() -> int:
         "total": len(results),
         "resolved": sum(1 for result in results if result["resolved"]),
         "unresolved": sum(1 for result in results if not result["resolved"]),
+        "stable_resolved": sum(1 for result in results if result["stable_resolved"]),
+        "average_pass_rate": (
+            sum(result["pass_rate"] for result in results) / len(results)
+            if results
+            else 0.0
+        ),
     }
     payload = {"summary": summary, "results": results}
     args.output.parent.mkdir(parents=True, exist_ok=True)

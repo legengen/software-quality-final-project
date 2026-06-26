@@ -2,12 +2,19 @@
   "summary": {
     "total": 1,
     "resolved": 1,
-    "unresolved": 0
+    "unresolved": 0,
+    "stable_resolved": 1,
+    "average_pass_rate": 1.0
   },
   "results": [
     {
       "instance_id": "local_concurrency__counter-0001",
       "resolved": true,
+      "stable_resolved": true,
+      "repeat": 10,
+      "passed_runs": 10,
+      "failed_runs": 0,
+      "pass_rate": 1.0,
       "test_patch_applied": true,
       "model_patch_applied": true,
       "pytest_exit_code": 0,
@@ -20,7 +27,69 @@
       ],
       "test_patch_output": "git apply -p1:\n",
       "model_patch_output": "git apply -p1:\n",
-      "test_output": "...                                                                      [100%]\n3 passed in 0.25s\n"
+      "test_output": "...                                                                      [100%]\n3 passed in 0.22s\n",
+      "test_runs": [
+        {
+          "run": 1,
+          "exit_code": 0,
+          "passed": true,
+          "output": "...                                                                      [100%]\n3 passed in 0.23s\n"
+        },
+        {
+          "run": 2,
+          "exit_code": 0,
+          "passed": true,
+          "output": "...                                                                      [100%]\n3 passed in 0.22s\n"
+        },
+        {
+          "run": 3,
+          "exit_code": 0,
+          "passed": true,
+          "output": "...                                                                      [100%]\n3 passed in 0.22s\n"
+        },
+        {
+          "run": 4,
+          "exit_code": 0,
+          "passed": true,
+          "output": "...                                                                      [100%]\n3 passed in 0.22s\n"
+        },
+        {
+          "run": 5,
+          "exit_code": 0,
+          "passed": true,
+          "output": "...                                                                      [100%]\n3 passed in 0.22s\n"
+        },
+        {
+          "run": 6,
+          "exit_code": 0,
+          "passed": true,
+          "output": "...                                                                      [100%]\n3 passed in 0.22s\n"
+        },
+        {
+          "run": 7,
+          "exit_code": 0,
+          "passed": true,
+          "output": "...                                                                      [100%]\n3 passed in 0.22s\n"
+        },
+        {
+          "run": 8,
+          "exit_code": 0,
+          "passed": true,
+          "output": "...                                                                      [100%]\n3 passed in 0.22s\n"
+        },
+        {
+          "run": 9,
+          "exit_code": 0,
+          "passed": true,
+          "output": "...                                                                      [100%]\n3 passed in 0.22s\n"
+        },
+        {
+          "run": 10,
+          "exit_code": 0,
+          "passed": true,
+          "output": "...                                                                      [100%]\n3 passed in 0.22s\n"
+        }
+      ]
     }
   ]
 }

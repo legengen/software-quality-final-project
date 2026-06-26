@@ -2,12 +2,19 @@
   "summary": {
     "total": 1,
     "resolved": 0,
-    "unresolved": 1
+    "unresolved": 1,
+    "stable_resolved": 0,
+    "average_pass_rate": 0.0
   },
   "results": [
     {
       "instance_id": "local_concurrency__counter-0001",
       "resolved": false,
+      "stable_resolved": false,
+      "repeat": 10,
+      "passed_runs": 0,
+      "failed_runs": 10,
+      "pass_rate": 0.0,
       "test_patch_applied": true,
       "model_patch_applied": true,
       "pytest_exit_code": 1,
@@ -20,7 +27,69 @@
       ],
       "test_patch_output": "git apply -p1:\n",
       "model_patch_output": "empty patch treated as no-op",
-      "test_output": "F..                                                                      [100%]\n=================================== FAILURES ===================================\n____________________ test_parallel_increment_is_thread_safe ____________________\n\n    def test_parallel_increment_is_thread_safe():\n        counter = ConcurrentCounter()\n        workers = 8\n        increments_per_worker = 250\n    \n        with ThreadPoolExecutor(max_workers=workers) as executor:\n            futures = [\n                executor.submit(_increment_many, counter, increments_per_worker)\n                for _ in range(workers)\n            ]\n            for future in futures:\n                future.result()\n    \n>       assert counter.value == workers * increments_per_worker\nE       assert 254 == (8 * 250)\nE        +  where 254 = <concurrent_counter.counter.ConcurrentCounter object at 0x75d981422390>.value\n\ntests/test_counter_thread_safety.py:24: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_counter_thread_safety.py::test_parallel_increment_is_thread_safe\n1 failed, 2 passed in 0.10s\n"
+      "test_output": "F..                                                                      [100%]\n=================================== FAILURES ===================================\n____________________ test_parallel_increment_is_thread_safe ____________________\n\n    def test_parallel_increment_is_thread_safe():\n        counter = ConcurrentCounter()\n        workers = 8\n        increments_per_worker = 250\n    \n        with ThreadPoolExecutor(max_workers=workers) as executor:\n            futures = [\n                executor.submit(_increment_many, counter, increments_per_worker)\n                for _ in range(workers)\n            ]\n            for future in futures:\n                future.result()\n    \n>       assert counter.value == workers * increments_per_worker\nE       assert 251 == (8 * 250)\nE        +  where 251 = <concurrent_counter.counter.ConcurrentCounter object at 0x7d74f663a120>.value\n\ntests/test_counter_thread_safety.py:24: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_counter_thread_safety.py::test_parallel_increment_is_thread_safe\n1 failed, 2 passed in 0.08s\n",
+      "test_runs": [
+        {
+          "run": 1,
+          "exit_code": 1,
+          "passed": false,
+          "output": "F..                                                                      [100%]\n=================================== FAILURES ===================================\n____________________ test_parallel_increment_is_thread_safe ____________________\n\n    def test_parallel_increment_is_thread_safe():\n        counter = ConcurrentCounter()\n        workers = 8\n        increments_per_worker = 250\n    \n        with ThreadPoolExecutor(max_workers=workers) as executor:\n            futures = [\n                executor.submit(_increment_many, counter, increments_per_worker)\n                for _ in range(workers)\n            ]\n            for future in futures:\n                future.result()\n    \n>       assert counter.value == workers * increments_per_worker\nE       assert 253 == (8 * 250)\nE        +  where 253 = <concurrent_counter.counter.ConcurrentCounter object at 0x7a4f4b81e5d0>.value\n\ntests/test_counter_thread_safety.py:24: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_counter_thread_safety.py::test_parallel_increment_is_thread_safe\n1 failed, 2 passed in 0.08s\n"
+        },
+        {
+          "run": 2,
+          "exit_code": 1,
+          "passed": false,
+          "output": "F..                                                                      [100%]\n=================================== FAILURES ===================================\n____________________ test_parallel_increment_is_thread_safe ____________________\n\n    def test_parallel_increment_is_thread_safe():\n        counter = ConcurrentCounter()\n        workers = 8\n        increments_per_worker = 250\n    \n        with ThreadPoolExecutor(max_workers=workers) as executor:\n            futures = [\n                executor.submit(_increment_many, counter, increments_per_worker)\n                for _ in range(workers)\n            ]\n            for future in futures:\n                future.result()\n    \n>       assert counter.value == workers * increments_per_worker\nE       assert 258 == (8 * 250)\nE        +  where 258 = <concurrent_counter.counter.ConcurrentCounter object at 0x7ee54ce461e0>.value\n\ntests/test_counter_thread_safety.py:24: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_counter_thread_safety.py::test_parallel_increment_is_thread_safe\n1 failed, 2 passed in 0.08s\n"
+        },
+        {
+          "run": 3,
+          "exit_code": 1,
+          "passed": false,
+          "output": "F..                                                                      [100%]\n=================================== FAILURES ===================================\n____________________ test_parallel_increment_is_thread_safe ____________________\n\n    def test_parallel_increment_is_thread_safe():\n        counter = ConcurrentCounter()\n        workers = 8\n        increments_per_worker = 250\n    \n        with ThreadPoolExecutor(max_workers=workers) as executor:\n            futures = [\n                executor.submit(_increment_many, counter, increments_per_worker)\n                for _ in range(workers)\n            ]\n            for future in futures:\n                future.result()\n    \n>       assert counter.value == workers * increments_per_worker\nE       assert 253 == (8 * 250)\nE        +  where 253 = <concurrent_counter.counter.ConcurrentCounter object at 0x7856e6d460f0>.value\n\ntests/test_counter_thread_safety.py:24: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_counter_thread_safety.py::test_parallel_increment_is_thread_safe\n1 failed, 2 passed in 0.09s\n"
+        },
+        {
+          "run": 4,
+          "exit_code": 1,
+          "passed": false,
+          "output": "F..                                                                      [100%]\n=================================== FAILURES ===================================\n____________________ test_parallel_increment_is_thread_safe ____________________\n\n    def test_parallel_increment_is_thread_safe():\n        counter = ConcurrentCounter()\n        workers = 8\n        increments_per_worker = 250\n    \n        with ThreadPoolExecutor(max_workers=workers) as executor:\n            futures = [\n                executor.submit(_increment_many, counter, increments_per_worker)\n                for _ in range(workers)\n            ]\n            for future in futures:\n                future.result()\n    \n>       assert counter.value == workers * increments_per_worker\nE       assert 254 == (8 * 250)\nE        +  where 254 = <concurrent_counter.counter.ConcurrentCounter object at 0x7d812bd46210>.value\n\ntests/test_counter_thread_safety.py:24: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_counter_thread_safety.py::test_parallel_increment_is_thread_safe\n1 failed, 2 passed in 0.07s\n"
+        },
+        {
+          "run": 5,
+          "exit_code": 1,
+          "passed": false,
+          "output": "F..                                                                      [100%]\n=================================== FAILURES ===================================\n____________________ test_parallel_increment_is_thread_safe ____________________\n\n    def test_parallel_increment_is_thread_safe():\n        counter = ConcurrentCounter()\n        workers = 8\n        increments_per_worker = 250\n    \n        with ThreadPoolExecutor(max_workers=workers) as executor:\n            futures = [\n                executor.submit(_increment_many, counter, increments_per_worker)\n                for _ in range(workers)\n            ]\n            for future in futures:\n                future.result()\n    \n>       assert counter.value == workers * increments_per_worker\nE       assert 251 == (8 * 250)\nE        +  where 251 = <concurrent_counter.counter.ConcurrentCounter object at 0x762bdba926c0>.value\n\ntests/test_counter_thread_safety.py:24: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_counter_thread_safety.py::test_parallel_increment_is_thread_safe\n1 failed, 2 passed in 0.09s\n"
+        },
+        {
+          "run": 6,
+          "exit_code": 1,
+          "passed": false,
+          "output": "F..                                                                      [100%]\n=================================== FAILURES ===================================\n____________________ test_parallel_increment_is_thread_safe ____________________\n\n    def test_parallel_increment_is_thread_safe():\n        counter = ConcurrentCounter()\n        workers = 8\n        increments_per_worker = 250\n    \n        with ThreadPoolExecutor(max_workers=workers) as executor:\n            futures = [\n                executor.submit(_increment_many, counter, increments_per_worker)\n                for _ in range(workers)\n            ]\n            for future in futures:\n                future.result()\n    \n>       assert counter.value == workers * increments_per_worker\nE       assert 258 == (8 * 250)\nE        +  where 258 = <concurrent_counter.counter.ConcurrentCounter object at 0x732fa0c461e0>.value\n\ntests/test_counter_thread_safety.py:24: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_counter_thread_safety.py::test_parallel_increment_is_thread_safe\n1 failed, 2 passed in 0.09s\n"
+        },
+        {
+          "run": 7,
+          "exit_code": 1,
+          "passed": false,
+          "output": "F..                                                                      [100%]\n=================================== FAILURES ===================================\n____________________ test_parallel_increment_is_thread_safe ____________________\n\n    def test_parallel_increment_is_thread_safe():\n        counter = ConcurrentCounter()\n        workers = 8\n        increments_per_worker = 250\n    \n        with ThreadPoolExecutor(max_workers=workers) as executor:\n            futures = [\n                executor.submit(_increment_many, counter, increments_per_worker)\n                for _ in range(workers)\n            ]\n            for future in futures:\n                future.result()\n    \n>       assert counter.value == workers * increments_per_worker\nE       assert 253 == (8 * 250)\nE        +  where 253 = <concurrent_counter.counter.ConcurrentCounter object at 0x7b12b4b424e0>.value\n\ntests/test_counter_thread_safety.py:24: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_counter_thread_safety.py::test_parallel_increment_is_thread_safe\n1 failed, 2 passed in 0.08s\n"
+        },
+        {
+          "run": 8,
+          "exit_code": 1,
+          "passed": false,
+          "output": "F..                                                                      [100%]\n=================================== FAILURES ===================================\n____________________ test_parallel_increment_is_thread_safe ____________________\n\n    def test_parallel_increment_is_thread_safe():\n        counter = ConcurrentCounter()\n        workers = 8\n        increments_per_worker = 250\n    \n        with ThreadPoolExecutor(max_workers=workers) as executor:\n            futures = [\n                executor.submit(_increment_many, counter, increments_per_worker)\n                for _ in range(workers)\n            ]\n            for future in futures:\n                future.result()\n    \n>       assert counter.value == workers * increments_per_worker\nE       assert 256 == (8 * 250)\nE        +  where 256 = <concurrent_counter.counter.ConcurrentCounter object at 0x7a0fb2146510>.value\n\ntests/test_counter_thread_safety.py:24: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_counter_thread_safety.py::test_parallel_increment_is_thread_safe\n1 failed, 2 passed in 0.07s\n"
+        },
+        {
+          "run": 9,
+          "exit_code": 1,
+          "passed": false,
+          "output": "F..                                                                      [100%]\n=================================== FAILURES ===================================\n____________________ test_parallel_increment_is_thread_safe ____________________\n\n    def test_parallel_increment_is_thread_safe():\n        counter = ConcurrentCounter()\n        workers = 8\n        increments_per_worker = 250\n    \n        with ThreadPoolExecutor(max_workers=workers) as executor:\n            futures = [\n                executor.submit(_increment_many, counter, increments_per_worker)\n                for _ in range(workers)\n            ]\n            for future in futures:\n                future.result()\n    \n>       assert counter.value == workers * increments_per_worker\nE       assert 253 == (8 * 250)\nE        +  where 253 = <concurrent_counter.counter.ConcurrentCounter object at 0x78d0f69461e0>.value\n\ntests/test_counter_thread_safety.py:24: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_counter_thread_safety.py::test_parallel_increment_is_thread_safe\n1 failed, 2 passed in 0.08s\n"
+        },
+        {
+          "run": 10,
+          "exit_code": 1,
+          "passed": false,
+          "output": "F..                                                                      [100%]\n=================================== FAILURES ===================================\n____________________ test_parallel_increment_is_thread_safe ____________________\n\n    def test_parallel_increment_is_thread_safe():\n        counter = ConcurrentCounter()\n        workers = 8\n        increments_per_worker = 250\n    \n        with ThreadPoolExecutor(max_workers=workers) as executor:\n            futures = [\n                executor.submit(_increment_many, counter, increments_per_worker)\n                for _ in range(workers)\n            ]\n            for future in futures:\n                future.result()\n    \n>       assert counter.value == workers * increments_per_worker\nE       assert 251 == (8 * 250)\nE        +  where 251 = <concurrent_counter.counter.ConcurrentCounter object at 0x7d74f663a120>.value\n\ntests/test_counter_thread_safety.py:24: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_counter_thread_safety.py::test_parallel_increment_is_thread_safe\n1 failed, 2 passed in 0.08s\n"
+        }
+      ]
     }
   ]
 }
