@@ -533,11 +533,43 @@ Agentless/results/custom_concurrency/gold_evaluation_report.json
 total: 1
 resolved: 1
 unresolved: 0
+stable_resolved: 1
+average_pass_rate: 1.0
 ```
 
 这证明自定义并发测试是有效的：不修复会失败，正确修复会通过。
 
-### 5.7 一键运行自定义并发流程
+### 5.7 三项轻量创新点
+
+在自定义并发修复流程中，本项目加入了三项小规模改进，用于增强课程作业的创新性和可解释性。
+
+第一项是并发稳定性评测。并发缺陷受线程调度影响，单次 pytest 结果可能不足以说明补丁稳定性。因此 evaluator 新增 `--repeat N` 参数，对同一个补丁重复运行测试，输出：
+
+- `repeat`：重复测试轮数；
+- `passed_runs`：通过轮数；
+- `failed_runs`：失败轮数；
+- `pass_rate`：通过率；
+- `stable_resolved`：是否 N 轮全部通过。
+
+第二项是并发语义增强提示。repair 阶段新增 `--concurrency_hint` 参数，在 prompt 中显式提醒 LLM 关注共享可变状态、读-改-写序列、临界区、锁覆盖范围和顺序行为保持。该提示只在自定义并发脚本中启用，不影响基础 SWE-bench 复现。
+
+第三项是补丁并发风险检查。evaluator 会对模型 patch 做轻量静态分析，输出 `patch_risk` 字段，检查内容包括：
+
+- 是否修改源文件而不是只改测试；
+- 是否使用 `Lock` 或 `RLock`；
+- 是否用 `with self._lock` 保护共享状态；
+- `increment()` 的读-改-写是否被保护；
+- `reset()` 是否也保护共享状态；
+- 是否新增可疑的 `sleep()`。
+
+当前保存的对比结果如下：
+
+| patch | repeat | passed_runs | failed_runs | pass_rate | stable_resolved | risk_level |
+| --- | --- | --- | --- | --- | --- | --- |
+| no-op | 10 | 0 | 10 | 0.0 | false | high |
+| gold | 10 | 10 | 0 | 1.0 | true | low |
+
+### 5.8 一键运行自定义并发流程
 
 项目提供脚本：
 
@@ -549,6 +581,12 @@ Agentless/scripts/run_custom_concurrency_case.sh
 
 ```bash
 Agentless/scripts/run_custom_concurrency_case.sh
+```
+
+默认重复评测轮数为 10。可通过 `REPEAT` 修改：
+
+```bash
+REPEAT=20 Agentless/scripts/run_custom_concurrency_case.sh
 ```
 
 如果要真正调用 DeepSeek 让 LLM 修复并发 bug：
@@ -565,10 +603,11 @@ RUN_LLM=1 Agentless/scripts/run_custom_concurrency_case.sh
 3. file-level localization；
 4. related-level localization；
 5. fine-grain localization；
-6. repair；
-7. 用 `evaluate_custom_concurrency.py` 评测 LLM patch。
+6. 带 `--concurrency_hint` 的 repair；
+7. 用 `evaluate_custom_concurrency.py --repeat "$REPEAT"` 评测 LLM patch；
+8. 输出稳定性指标和补丁风险检查结果。
 
-### 5.8 手动运行自定义并发 LLM 修复
+### 5.9 手动运行自定义并发 LLM 修复
 
 进入 AGENTLESS：
 
@@ -636,6 +675,7 @@ PYTHONPATH=$PWD python agentless/repair/repair.py \
   --context_window 20 \
   --max_tokens 4096 \
   --max_samples 1 \
+  --concurrency_hint \
   --gen_and_process \
   --num_threads 1 \
   --model deepseek-v4-pro \
@@ -651,7 +691,8 @@ python ../scripts/evaluate_custom_concurrency.py \
   --predictions results/custom_concurrency/counter/repair/output_0_processed.jsonl \
   --benchmark-root ../benchmarks/concurrent_counter \
   --output results/custom_concurrency/counter/evaluation_report.json \
-  --python "$(command -v python)"
+  --python "$(command -v python)" \
+  --repeat 10
 ```
 
 如果 AGENTLESS 虚拟环境没有安装 pytest，需要用 `--python` 指向已安装 pytest 的解释器。
@@ -717,12 +758,14 @@ Agentless/results/custom_concurrency/counter/evaluation_report.json
   "summary": {
     "total": 1,
     "resolved": 1,
-    "unresolved": 0
+    "unresolved": 0,
+    "stable_resolved": 1,
+    "average_pass_rate": 1.0
   }
 }
 ```
 
-则说明 LLM patch 应用成功，新增并发测试和回归测试均通过。
+且单实例结果中的 `patch_risk.risk_level` 为 `low` 或可解释的 `medium`，则说明 LLM patch 应用成功，并且在多轮并发测试中稳定通过。
 
 ## 8. 当前已完成的成果
 
@@ -738,8 +781,11 @@ Agentless/results/custom_concurrency/counter/evaluation_report.json
 - 已新增 `ConcurrentCounter` 并发竞态缺陷；
 - 已生成 SWE-bench 风格自定义 case；
 - 已实现本地 evaluator；
-- 已验证 no-op patch 为 unresolved；
-- 已验证 gold patch 为 resolved；
+- 已加入并发稳定性重复评测；
+- 已加入 repair 阶段并发语义提示；
+- 已加入补丁并发风险检查；
+- 已验证 no-op patch 为 unresolved、`pass_rate=0.0`、`risk_level=high`；
+- 已验证 gold patch 为 stable resolved、`pass_rate=1.0`、`risk_level=low`；
 - 已提供一键脚本用于后续调用 LLM 修复。
 
 ## 9. 提交与远程仓库

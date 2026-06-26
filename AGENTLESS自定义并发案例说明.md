@@ -88,6 +88,7 @@ PYTHONPATH=$PWD python agentless/repair/repair.py \
   --context_window 20 \
   --max_tokens 4096 \
   --max_samples 1 \
+  --concurrency_hint \
   --gen_and_process \
   --num_threads 1 \
   --model deepseek-v4-pro \
@@ -105,7 +106,8 @@ python ../scripts/evaluate_custom_concurrency.py \
   --predictions results/custom_concurrency/counter/repair/output_0_processed.jsonl \
   --benchmark-root ../benchmarks/concurrent_counter \
   --output results/custom_concurrency/counter/evaluation_report.json \
-  --python "$(command -v python)"
+  --python "$(command -v python)" \
+  --repeat 10
 ```
 
 评测 gold patch：
@@ -115,9 +117,25 @@ python scripts/evaluate_custom_concurrency.py \
   --dataset Agentless/resources/custom_concurrency/concurrency_cases.json \
   --predictions Agentless/resources/custom_concurrency/gold_patch.jsonl \
   --benchmark-root benchmarks/concurrent_counter \
-  --output Agentless/results/custom_concurrency/gold_evaluation_report.json
+  --output Agentless/results/custom_concurrency/gold_evaluation_report.json \
+  --repeat 10
 ```
 
-预期结果是 `resolved: 1/1`。
+预期结果是 `resolved: 1/1`，`stable_resolved: 1/1`，`average_pass_rate: 1.0`。
 
 如果在 AGENTLESS 虚拟环境中执行 evaluator，而该环境没有安装 pytest，需要用 `--python` 指向一个已安装 pytest 的 Python 解释器。
+
+## 5. 本项目加入的轻量创新点
+
+围绕并发代码修复，本项目增加了三个小改进：
+
+- 并发稳定性评测：`--repeat N` 多次运行 pytest，用 `pass_rate` 和 `stable_resolved` 判断补丁是否稳定。
+- 并发语义增强提示：repair 使用 `--concurrency_hint`，提醒 LLM 关注共享状态、读-改-写、锁覆盖和顺序行为。
+- 补丁风险检查：evaluator 输出 `patch_risk`，检查是否使用锁、是否保护 `increment/reset`、是否只改测试等。
+
+当前保存结果：
+
+| patch | repeat | pass_rate | stable_resolved | risk_level |
+| --- | --- | --- | --- | --- |
+| no-op | 10 | 0.0 | false | high |
+| gold | 10 | 1.0 | true | low |
