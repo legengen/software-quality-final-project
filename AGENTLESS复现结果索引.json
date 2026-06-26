@@ -1,0 +1,53 @@
+{
+  "title": "AGENTLESS + DeepSeek V4 Pro High 复现结果索引",
+  "summary": {
+    "total": 5,
+    "resolved": 3,
+    "unresolved": 2
+  },
+  "cases": [
+    {
+      "instance_id": "astropy__astropy-12907",
+      "report": "Agentless/agentless.deepseek-v4pro-4096-smoke.json",
+      "completed": 1,
+      "resolved": true,
+      "errors": 0
+    },
+    {
+      "instance_id": "astropy__astropy-14182",
+      "report": "Agentless/agentless.deepseek-v4pro-14182.json",
+      "completed": 1,
+      "resolved": false,
+      "errors": 0
+    },
+    {
+      "instance_id": "astropy__astropy-14365",
+      "report": "Agentless/agentless.deepseek-v4pro-14365.json",
+      "completed": 1,
+      "resolved": false,
+      "errors": 0
+    },
+    {
+      "instance_id": "astropy__astropy-14995",
+      "report": "Agentless/agentless.deepseek-v4pro-14995.json",
+      "completed": 1,
+      "resolved": true,
+      "errors": 0
+    },
+    {
+      "instance_id": "astropy__astropy-6938",
+      "report": "Agentless/agentless.deepseek-v4pro-6938.json",
+      "completed": 1,
+      "resolved": true,
+      "errors": 0
+    }
+  ],
+  "key_outputs": {
+    "experiment_log": "AGENTLESS复现实验记录.md",
+    "final_report_md": "AGENTLESS复现最终报告.md",
+    "rerun_guide_md": "AGENTLESS复跑说明.md",
+    "result_index_json": "AGENTLESS复现结果索引.json",
+    "final_report_docx": "AGENTLESS复现最终报告.docx",
+    "deliverable_checklist": "AGENTLESS交付文件清单.md"
+  }
+}

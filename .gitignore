@@ -1,0 +1,30 @@
+# Python / local runtime
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.env
+.env.*
+
+# Virtual environments
+.venv/
+venv/
+env/
+Agentless/.venv-agentless/
+
+# Nested upstream repository metadata kept only as a local backup.
+Agentless/.git/
+Agentless/.git-upstream-backup/
+
+# AGENTLESS transient workspaces and cache-heavy generated state.
+Agentless/playground/
+Agentless/resources/project_structures/
+Agentless/logs/build_images/
+
+# Editor / OS noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
